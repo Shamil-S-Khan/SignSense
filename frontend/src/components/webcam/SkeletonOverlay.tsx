@@ -72,8 +72,9 @@ export function SkeletonOverlay({ rawHandsRef, width, height }: Props) {
       height={height}
       style={{
         position: "absolute",
-        top: 0,
-        left: 0,
+        inset: 0,
+        width: "100%",
+        height: "100%",
         pointerEvents: "none",
         transform: "scaleX(-1)",
         zIndex: 10,

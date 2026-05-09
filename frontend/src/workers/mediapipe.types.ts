@@ -1,24 +1,32 @@
-// Main thread → Worker
 export type WorkerInMessage =
-  | { type: "INIT"; config: { modelComplexity?: number } }
+  | { type: "INIT"; config?: { modelComplexity?: number } }
   | { type: "FRAME"; frame: ImageBitmap; timestamp: number }
   | { type: "SET_CONFIG"; poseEnabled: boolean };
 
-// Worker → Main thread
 export type WorkerOutMessage =
-  | { type: "LANDMARKS"; landmarks: NormalizedLandmarks; rawHands?: HandLandmark[][]; timestamp: number }
-  | { type: "SIGN_READY"; frames: Float32Array; frameCount: number }
-  | { type: "SIGN_DETECTED"; signIdx: number; confidence: number }
-  | { type: "STATUS"; state: VADState; fps: number };
+  | { type: "READY" }
+  | { type: "LANDMARKS"; landmarks: NormalizedLandmarks; rawHands: HandLandmark[][]; timestamp: number }
+  | { type: "VAD_STATE"; state: VADState; velocity: number; timestamp: number }
+  | { type: "SIGN_SEGMENT"; frames: Float32Array; frameCount: number; startedAt: number; endedAt: number }
+  | { type: "METRICS"; fps: number; latencyMs: number; droppedFrames: number }
+  | { type: "ERROR"; message: string };
 
 export type VADState = "IDLE" | "SIGNING" | "COOLDOWN";
 
 export interface HandLandmark {
-  x: number; y: number; z: number;
+  x: number;
+  y: number;
+  z: number;
 }
 
 export interface NormalizedLandmarks {
-  leftHand: HandLandmark[];   // 21 landmarks, empty if absent
-  rightHand: HandLandmark[];  // 21 landmarks, empty if absent
-  pose: HandLandmark[];       // 33 landmarks
+  leftHand: HandLandmark[];
+  rightHand: HandLandmark[];
+  pose: HandLandmark[];
+}
+
+export interface WorkerMetrics {
+  fps: number;
+  latencyMs: number;
+  droppedFrames: number;
 }

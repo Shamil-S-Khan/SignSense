@@ -1,163 +1,193 @@
 "use client";
-import { useEffect, useCallback, useRef } from "react";
-import { useWebcam } from "@/hooks/useWebcam";
-import { useMediaPipeWorker } from "@/hooks/useMediaPipeWorker";
-import { SkeletonOverlay } from "./SkeletonOverlay";
+
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { classifyFingerspellingFallback } from "@/lib/inference/fingerspelling-fallback";
+import { useMediaPipeWorker } from "@/hooks/useMediaPipeWorker";
+import { useWebcam } from "@/hooks/useWebcam";
+import type { NormalizedLandmarks, VADState, WorkerMetrics } from "@/workers/mediapipe.types";
+import { SkeletonOverlay } from "./SkeletonOverlay";
 
-const WIDTH = 640;
-const HEIGHT = 480;
-
-interface Props {
-  onSignReady?: (frames: Float32Array) => void;
-  onSignDetected?: (
-    sign: string, 
-    confidence: number, 
-    scores?: { handshape: number; movement: number; orientation: number }
-  ) => void;
-  /** Callback to forward raw landmark arrays to WebSocket */
-  onLandmarksForWS?: (landmarks: number[]) => void;
-  /** Whether backend WebSocket is connected (disables local fallback) */
-  wsConnected?: boolean;
-  /** Disable pose detection to save performance (good for alphabet) */
-  disablePose?: boolean;
+interface ScoreBreakdown {
+  handshape: number;
+  movement: number;
+  orientation: number;
 }
 
-export function WebcamFeed({ onSignReady, onSignDetected, onLandmarksForWS, wsConnected, disablePose }: Props) {
-  const { videoRef, isStreaming, error, startCapture, stopCapture } = useWebcam();
-  const { isReady, landmarks, rawHandsRef, vadState, sendFrame, setPoseEnabled, onSignReady: signReadyRef, onSignDetected: signDetectedRef } = useMediaPipeWorker();
-  const frameCountRef = useRef(0);
+interface Props {
+  disablePose?: boolean;
+  overlayMessage?: string | null;
+  overlayTone?: "success" | "guided" | "neutral";
+  onLandmarks?: (landmarks: NormalizedLandmarks) => void;
+  onSignSegment?: (frames: Float32Array) => void;
+  onSignDetected?: (sign: string, confidence: number, scores: ScoreBreakdown) => void;
+  onStatusChange?: (status: { vadState: VADState; metrics: WorkerMetrics; cameraActive: boolean }) => void;
+}
 
-  // Forward disablePose prop to the worker once it's ready
-  // Must depend on isReady — before that, workerRef is null and the message is dropped
+export function WebcamFeed({
+  disablePose = true,
+  overlayMessage = null,
+  overlayTone = "neutral",
+  onLandmarks,
+  onSignSegment,
+  onSignDetected,
+  onStatusChange,
+}: Props) {
+  const { videoRef, isStreaming, error: cameraError, startCapture, stopCapture } = useWebcam();
+  const {
+    isReady,
+    error: workerError,
+    rawHandsRef,
+    vadState,
+    metrics,
+    sendFrame,
+    setPoseEnabled,
+    onLandmarks: onWorkerLandmarks,
+    onSignSegment: onWorkerSignSegment,
+  } = useMediaPipeWorker();
+
+  const latestDetectionRef = useRef<{ sign: string; at: number } | null>(null);
+  const [cameraStarted, setCameraStarted] = useState(false);
+
   useEffect(() => {
     if (!isReady) return;
     setPoseEnabled(!disablePose);
-  }, [isReady, disablePose, setPoseEnabled]);
+  }, [disablePose, isReady, setPoseEnabled]);
 
-  // Wire up sign ready callback
   useEffect(() => {
-    signReadyRef.current = onSignReady ?? null;
-  }, [onSignReady, signReadyRef]);
+    onWorkerSignSegment.current = onSignSegment ?? null;
+  }, [onSignSegment, onWorkerSignSegment]);
 
-  // Wire up sign detected callback (legacy GRU path — kept as fallback)
   useEffect(() => {
-    signDetectedRef.current = (idx, confidence) => {
-      if (!wsConnected) {
-        onSignDetected?.(`sign_${idx}`, confidence, {
-          handshape: confidence * 100,
-          movement: 90,
-          orientation: 90
-        });
-      }
-    };
-  }, [onSignDetected, signDetectedRef, wsConnected]);
+    onWorkerLandmarks.current = (landmarks) => {
+      onLandmarks?.(landmarks);
 
-  // Forward landmarks to WebSocket + local fallback classification
-  useEffect(() => {
-    if (!landmarks) return;
+      const hand = landmarks.rightHand.length > 0 ? landmarks.rightHand : landmarks.leftHand;
+      if (hand.length !== 21 || !onSignDetected) return;
 
-    const hand = landmarks.rightHand.length > 0 ? landmarks.rightHand : landmarks.leftHand;
-    
-    // Skip frames to reduce lag (only send 15fps to the backend)
-    frameCountRef.current++;
-    const shouldSkip = frameCountRef.current % 2 !== 0;
-
-    // Debug: log detection state every ~60 frames
-    if (!shouldSkip && Math.random() < 0.05) {
-      console.log(`[WebcamFeed] rightHand=${landmarks.rightHand.length}, leftHand=${landmarks.leftHand.length}, pose=${landmarks.pose.length}, wsConnected=${wsConnected}`);
-    }
-    
-    if (hand.length !== 21 || shouldSkip) return;
-
-    // Always forward to WebSocket if available
-    if (onLandmarksForWS) {
-      const flat: number[] = [];
-      
-      // 1. Dominant hand (first 63 floats) — kept for fingerspelling model compatibility
-      for (let i = 0; i < 21; i++) {
-        const lm = hand[i] || { x: 0, y: 0, z: 0 };
-        flat.push(lm.x, lm.y, lm.z);
-      }
-      
-      // 2. Full set for Pose-TGCN (dynamic signs)
-      // Left Hand (21)
-      for (let i = 0; i < 21; i++) {
-        const lm = landmarks.leftHand[i] || { x: 0, y: 0, z: 0 };
-        flat.push(lm.x, lm.y, lm.z);
-      }
-      // Right Hand (21)
-      for (let i = 0; i < 21; i++) {
-        const lm = landmarks.rightHand[i] || { x: 0, y: 0, z: 0 };
-        flat.push(lm.x, lm.y, lm.z);
-      }
-      // Pose (33)
-      for (let i = 0; i < 33; i++) {
-        const lm = (!disablePose ? landmarks.pose[i] : null) || { x: 0, y: 0, z: 0 };
-        flat.push(lm.x, lm.y, lm.z);
-      }
-      
-      onLandmarksForWS(flat);
-    }
-
-    // Local fingerpose fallback only when WS is disconnected
-    if (!wsConnected && onSignDetected) {
       const result = classifyFingerspellingFallback(hand);
-      if (result) {
-        onSignDetected(result.letter, result.confidence, result.scores);
-      }
-    }
-  }, [landmarks, onSignDetected, onLandmarksForWS, wsConnected]);
+      if (!result) return;
 
-  // Start capture once MediaPipe is ready
+      const last = latestDetectionRef.current;
+      const now = performance.now();
+      if (last?.sign === result.letter && now - last.at < 400) return;
+
+      latestDetectionRef.current = { sign: result.letter, at: now };
+      onSignDetected(result.letter, result.confidence, result.scores);
+    };
+
+    return () => {
+      onWorkerLandmarks.current = null;
+    };
+  }, [onLandmarks, onSignDetected, onWorkerLandmarks]);
+
   useEffect(() => {
-    if (isReady) startCapture(sendFrame);
-    return () => stopCapture();
-  }, [isReady, startCapture, stopCapture, sendFrame]);
+    onStatusChange?.({ vadState, metrics, cameraActive: isStreaming });
+  }, [isStreaming, metrics, onStatusChange, vadState]);
+
+  useEffect(() => {
+    if (cameraError || workerError) {
+      setCameraStarted(false);
+    }
+  }, [cameraError, workerError]);
+
+  const start = () => {
+    if (!isReady) return;
+    setCameraStarted(true);
+    startCapture(sendFrame);
+  };
+
+  const stop = () => {
+    setCameraStarted(false);
+    stopCapture();
+  };
+
+  const statusLabel = workerError || cameraError || (!isReady ? "Loading MediaPipe" : isStreaming ? "Camera Live" : "Camera Ready");
 
   return (
-    <div className="relative w-full h-full min-h-[400px] flex items-center justify-center bg-black overflow-hidden rounded-3xl border-2 border-gray-800">
+    <section className="relative h-full min-h-[420px] overflow-hidden rounded-[var(--radius-card)] border border-[#e5e5e5] bg-[#2a1040]">
+      {/* Idle placeholder – shown when camera hasn't started */}
+      {!isStreaming && !cameraStarted && (
+        <div className="absolute inset-0 z-5 flex flex-col items-center justify-center gap-4 bg-purple-950/70">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M23 7L16 12l7 5V7z" />
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+          </svg>
+          <p className="text-sm font-semibold text-white/40">Start camera to begin</p>
+        </div>
+      )}
       <video
         ref={videoRef}
-        className="absolute inset-0 w-full h-full object-cover"
+        className="absolute inset-0 h-full w-full object-cover"
         style={{ transform: "scaleX(-1)" }}
         muted
         playsInline
       />
-      <div className="absolute inset-0 pointer-events-none">
-        <SkeletonOverlay rawHandsRef={rawHandsRef} width={640} height={480} />
-      </div>
-      {/* VAD state indicator */}
-      <div style={{
-        position: "absolute", top: 16, right: 16, padding: "6px 16px",
-        borderRadius: 20, fontSize: 14, fontWeight: 700,
-        background: vadState === "SIGNING" ? "#22C55E" : vadState === "COOLDOWN" ? "#F59E0B" : "#6B7280",
-        color: "#fff",
-        zIndex: 20,
-        boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
-      }}>
-        {vadState}
-      </div>
-      {/* WS connection indicator */}
-      <div style={{
-        position: "absolute", top: 16, left: 16, padding: "6px 16px",
-        borderRadius: 20, fontSize: 12, fontWeight: 700,
-        background: wsConnected ? "#22C55E" : "#EF4444",
-        color: "#fff",
-        zIndex: 20,
-        boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
-      }}>
-        {wsConnected ? "GPU" : "LOCAL"}
-      </div>
-      {error && <p className="absolute bottom-4 left-4 text-red-500 bg-black/50 px-2 rounded">{error}</p>}
-      {!isReady && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-50">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-blue-400 font-medium">Calibrating Camera...</p>
+
+      <SkeletonOverlay rawHandsRef={rawHandsRef} width={640} height={480} />
+
+      {overlayMessage ? (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 px-6">
+          <div
+            className={`rounded-2xl border px-6 py-4 text-center backdrop-blur ${
+              overlayTone === "success"
+                ? "border-emerald-300/70 bg-emerald-400/20 text-white"
+                : overlayTone === "guided"
+                  ? "border-amber-300/70 bg-amber-400/20 text-white"
+                  : "border-white/20 bg-black/40 text-white"
+            }`}
+          >
+            <p className="text-3xl font-black uppercase tracking-[0.18em]">{overlayMessage}</p>
           </div>
         </div>
-      )}
+      ) : null}
+
+      <div className="absolute left-4 top-4 z-20 flex flex-wrap gap-2">
+        <StatusPill tone={isStreaming ? "green" : workerError || cameraError ? "red" : "neutral"}>{statusLabel}</StatusPill>
+        <StatusPill tone={vadState === "SIGNING" ? "green" : vadState === "COOLDOWN" ? "amber" : "neutral"}>
+          {vadState}
+        </StatusPill>
+      </div>
+
+      <div className="absolute bottom-4 left-4 right-4 z-20 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="grid w-full grid-cols-3 gap-2 rounded-xl border border-white/15 bg-black/60 p-3 text-center backdrop-blur md:max-w-xs">
+          <Metric label="FPS" value={metrics.fps || "-"} />
+          <Metric label="Latency" value={metrics.latencyMs ? `${metrics.latencyMs}ms` : "-"} />
+          <Metric label="Dropped" value={metrics.droppedFrames} />
+        </div>
+
+        <button
+          type="button"
+          onClick={isStreaming ? stop : start}
+          disabled={!isReady}
+          className="h-11 rounded-xl bg-white px-5 text-sm font-bold text-[#3c3c3c] transition hover:bg-[#e8f9ff] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isStreaming ? "Stop Camera" : cameraStarted ? "Starting..." : cameraError ? "Retry Camera" : "Start Camera"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function StatusPill({ children, tone }: { children: ReactNode; tone: "green" | "amber" | "red" | "neutral" }) {
+  const className =
+    tone === "green"
+      ? "border-emerald-400/40 bg-emerald-500/20 text-emerald-100"
+      : tone === "amber"
+        ? "border-amber-400/40 bg-amber-500/20 text-amber-100"
+        : tone === "red"
+          ? "border-red-400/40 bg-red-500/20 text-red-100"
+          : "border-white/10 bg-zinc-900/80 text-zinc-200";
+
+  return <span className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${className}`}>{children}</span>;
+}
+
+function Metric({ label, value }: { label: string; value: string | number }) {
+  const isDash = value === "-" || value === 0;
+  return (
+    <div>
+      <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">{label}</div>
+      <div className={`text-lg font-black ${isDash ? "text-zinc-500" : "text-white"}`}>{value}</div>
     </div>
   );
 }

@@ -31,4 +31,15 @@ docker-compose.override.yml
 *.keras
 *.onnx
 *.tflite
+model_weights/
+
+# Training data (user-recorded video frames — not for version control)
+backend/training_data/
+
+# Finetuning frame data (video frame images — not for version control)
+finetune/data/
+
+# Debug artifacts
+backend_error.txt
+
 celerybeat-schedule

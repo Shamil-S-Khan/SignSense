@@ -1,285 +1,311 @@
 import { FilesetResolver, HandLandmarker, PoseLandmarker } from "@mediapipe/tasks-vision";
-import type { WorkerInMessage, HandLandmark, NormalizedLandmarks } from "./mediapipe.types";
+import type { HandLandmark, NormalizedLandmarks, VADState, WorkerInMessage } from "./mediapipe.types";
 
-// Sign recognition now runs on the GPU backend via WebSocket.
-// This worker focuses on: Hand + Pose landmark extraction → Normalization → VAD.
+const HAND_MODEL =
+  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task";
+const POSE_MODEL =
+  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
+const WASM_ROOT = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
+
+const BUFFER_LEN = 90;
+const TARGET_SEGMENT_FRAMES = 60;
+const VALUES_PER_FRAME = 288;
+const MAX_FRAME_AGE_MS = 90;
 
 let handLandmarker: HandLandmarker | null = null;
 let poseLandmarker: PoseLandmarker | null = null;
+let poseEnabled = false;
 
-// --- Normalization ---
-function normalize(
-  rawHands: { x: number; y: number; z: number }[][],
-  rawHandedness: string[],
-  rawPose: { x: number; y: number; z: number }[]
-): NormalizedLandmarks {
-  // Hand landmarks: MediaPipe [0,1] normalized coordinates.
-  // We keep them as-is for the backend models.
-  
-  const normalizeHand = (lm: { x: number; y: number; z: number }[]): HandLandmark[] => {
-    return lm.map((p) => ({ x: p.x, y: p.y, z: p.z }));
-  };
-
-  let leftHand: HandLandmark[] = [];
-  let rightHand: HandLandmark[] = [];
-  for (let i = 0; i < rawHands.length; i++) {
-    const label = rawHandedness[i] === "Right" ? "Left" : "Right";
-    if (label === "Left") leftHand = normalizeHand(rawHands[i]);
-    else rightHand = normalizeHand(rawHands[i]);
-  }
-
-  const pose: HandLandmark[] = rawPose.map(p => ({ x: p.x, y: p.y, z: p.z }));
-
-  return { leftHand, rightHand, pose };
-}
-
-// --- Frame Buffer (circular) ---
-const BUFFER_LEN = 90;
-// 33 pose + 21 left + 21 right = 75 points. 75 * 3 = 225 floats.
-const VALUES_PER_FRAME = 225; 
 const frameBuffer = new Float32Array(BUFFER_LEN * VALUES_PER_FRAME);
 let bufferHead = 0;
 let bufferCount = 0;
+let frameIdx = 0;
 
-function landmarksToArray(lm: NormalizedLandmarks): Float32Array {
-  const arr = new Float32Array(VALUES_PER_FRAME);
-  
-  // Order: Left Hand (21), Right Hand (21), Pose (33)
-  // This matches what the backend expects for fingerspelling (first 63 floats = one hand)
-  // Wait, if the user signs with Right Hand, it should be in the first 63.
-  // MediaPipe "Right" hand (user's left) or "Left" hand (user's right).
-  
-  // We'll prioritize the "Active" hand for fingerspelling.
-  // But for Pose-TGCN, we need everything.
-  
-  const writePoints = (points: HandLandmark[], offset: number, count: number) => {
-    for (let i = 0; i < count; i++) {
-      const p = points[i] ?? { x: 0, y: 0, z: 0 };
-      arr[offset + i * 3] = p.x;
-      arr[offset + i * 3 + 1] = p.y;
-      arr[offset + i * 3 + 2] = p.z;
-    }
-  };
-
-  // The backend predict_fingerspelling takes first 63.
-  // We'll put the Right hand (user's dominant usually) or whichever is present.
-  const mainHand = lm.rightHand.length > 0 ? lm.rightHand : lm.leftHand;
-  writePoints(mainHand, 0, 21);          // 0..62 (Main hand for fingerspelling)
-  writePoints(lm.leftHand, 63, 21);       // 63..125
-  writePoints(lm.rightHand, 126, 21);     // 126..188
-  writePoints(lm.pose, 189, 33);          // 189..287 -- wait, size is 225.
-  // 75 points * 3 = 225. 
-  // 21 + 21 + 33 = 75. 
-  // 0..62 (21), 63..125 (21), 126..224 (33).
-  // Let's use:
-  // 0..62: Dominant Hand (for fingerspelling)
-  // 63..125: Left Hand
-  // 126..188: Right Hand
-  // 189..287: Pose (33 points) -> 33 * 3 = 99. 189 + 99 = 288.
-  // So VALUES_PER_FRAME should be 288.
-  
-  return arr;
-}
-// Adjusted below...
-
-const VALUES_PER_FRAME_UPDATED = 288;
-const frameBufferUpdated = new Float32Array(BUFFER_LEN * VALUES_PER_FRAME_UPDATED);
-
-function landmarksToArrayUpdated(lm: NormalizedLandmarks): Float32Array {
-  const arr = new Float32Array(VALUES_PER_FRAME_UPDATED);
-  const writePoints = (points: HandLandmark[], offset: number, count: number) => {
-    for (let i = 0; i < count; i++) {
-      const p = points[i] ?? { x: 0, y: 0, z: 0 };
-      arr[offset + i * 3] = p.x;
-      arr[offset + i * 3 + 1] = p.y;
-      arr[offset + i * 3 + 2] = p.z;
-    }
-  };
-  const mainHand = lm.rightHand.length > 0 ? lm.rightHand : lm.leftHand;
-  writePoints(mainHand, 0, 21);      // 0..62
-  writePoints(lm.leftHand, 63, 21);   // 63..125
-  writePoints(lm.rightHand, 126, 21); // 126..188
-  writePoints(lm.pose, 189, 33);      // 189..287
-  return arr;
-}
-
-function pushFrame(arr: Float32Array) {
-  frameBufferUpdated.set(arr, bufferHead * VALUES_PER_FRAME_UPDATED);
-  bufferHead = (bufferHead + 1) % BUFFER_LEN;
-  if (bufferCount < BUFFER_LEN) bufferCount++;
-}
-
-// --- Motion VAD ---
-let vadState: "IDLE" | "SIGNING" | "COOLDOWN" = "IDLE";
+let vadState: VADState = "IDLE";
 let prevHandPositions: number[] | null = null;
 const velocityWindow: number[] = [];
 let consecutiveAbove = 0;
 let consecutiveBelow = 0;
 let signStartIdx = 0;
-let cooldownCounter = 0;
-let upperThreshold = 0.015;
-let lowerThreshold = 0.008;
+let signStartedAt = 0;
+let cooldownFrames = 0;
 
-function computeVelocity(lm: NormalizedLandmarks): number {
-  const current: number[] = [];
-  for (const h of [...lm.leftHand, ...lm.rightHand]) {
-    current.push(h.x, h.y);
+const upperThreshold = 0.015;
+const lowerThreshold = 0.008;
+
+let metricsWindowStartedAt = performance.now();
+let processedFrames = 0;
+let droppedFrames = 0;
+let latencyTotal = 0;
+
+function postMessageToMain(message: unknown, transfer?: Transferable[]) {
+  (self as unknown as Worker).postMessage(message, transfer ?? []);
+}
+
+function normalize(
+  rawHands: { x: number; y: number; z: number }[][],
+  rawHandedness: string[],
+  rawPose: { x: number; y: number; z: number }[],
+): NormalizedLandmarks {
+  const toLandmarks = (points: { x: number; y: number; z: number }[]): HandLandmark[] =>
+    points.map((point) => ({ x: point.x, y: point.y, z: point.z }));
+
+  let leftHand: HandLandmark[] = [];
+  let rightHand: HandLandmark[] = [];
+
+  for (let i = 0; i < rawHands.length; i += 1) {
+    const mirroredLabel = rawHandedness[i] === "Right" ? "Left" : "Right";
+    if (mirroredLabel === "Left") {
+      leftHand = toLandmarks(rawHands[i]);
+    } else {
+      rightHand = toLandmarks(rawHands[i]);
+    }
   }
+
+  return {
+    leftHand,
+    rightHand,
+    pose: toLandmarks(rawPose),
+  };
+}
+
+function writePoints(target: Float32Array, points: HandLandmark[], offset: number, count: number) {
+  for (let i = 0; i < count; i += 1) {
+    const point = points[i] ?? { x: 0, y: 0, z: 0 };
+    target[offset + i * 3] = point.x;
+    target[offset + i * 3 + 1] = point.y;
+    target[offset + i * 3 + 2] = point.z;
+  }
+}
+
+function landmarksToArray(landmarks: NormalizedLandmarks): Float32Array {
+  const output = new Float32Array(VALUES_PER_FRAME);
+  const dominantHand = landmarks.rightHand.length > 0 ? landmarks.rightHand : landmarks.leftHand;
+
+  writePoints(output, dominantHand, 0, 21);
+  writePoints(output, landmarks.leftHand, 63, 21);
+  writePoints(output, landmarks.rightHand, 126, 21);
+  writePoints(output, landmarks.pose, 189, 33);
+
+  return output;
+}
+
+function pushFrame(frame: Float32Array) {
+  frameBuffer.set(frame, bufferHead * VALUES_PER_FRAME);
+  bufferHead = (bufferHead + 1) % BUFFER_LEN;
+  bufferCount = Math.min(bufferCount + 1, BUFFER_LEN);
+}
+
+function computeVelocity(landmarks: NormalizedLandmarks): number {
+  const current: number[] = [];
+  const activeHands = [...landmarks.leftHand, ...landmarks.rightHand];
+
+  for (const point of activeHands) {
+    current.push(point.x, point.y);
+  }
+
+  if (current.length === 0) {
+    prevHandPositions = null;
+    return 0;
+  }
+
   if (!prevHandPositions || current.length !== prevHandPositions.length) {
     prevHandPositions = current;
     return 0;
   }
-  let sum = 0;
-  let count = 0;
+
+  let total = 0;
   for (let i = 0; i < current.length; i += 2) {
-    if (current[i] === 0 && current[i + 1] === 0) continue;
     const dx = current[i] - prevHandPositions[i];
     const dy = current[i + 1] - prevHandPositions[i + 1];
-    sum += Math.sqrt(dx * dx + dy * dy);
-    count++;
+    total += Math.hypot(dx, dy);
   }
+
   prevHandPositions = current;
-  return count > 0 ? sum / count : 0;
+  return total / Math.max(1, current.length / 2);
 }
 
-function getSmoothedVelocity(v: number): number {
-  velocityWindow.push(v);
+function smoothVelocity(velocity: number): number {
+  velocityWindow.push(velocity);
   if (velocityWindow.length > 5) velocityWindow.shift();
-  return velocityWindow.reduce((a, b) => a + b, 0) / velocityWindow.length;
+  return velocityWindow.reduce((sum, value) => sum + value, 0) / velocityWindow.length;
 }
 
-function extractSignFrames(startIdx: number, endIdx: number): Float32Array {
-  const TARGET = 60;
-  const len = endIdx - startIdx;
-  const output = new Float32Array(TARGET * VALUES_PER_FRAME_UPDATED);
-  for (let i = 0; i < TARGET; i++) {
-    const srcIdx = Math.min(Math.floor((i / TARGET) * len) + startIdx, endIdx - 1);
-    const bufIdx = ((srcIdx % BUFFER_LEN) + BUFFER_LEN) % BUFFER_LEN;
+function extractSegment(startIdx: number, endIdx: number): Float32Array {
+  const availableLength = Math.max(1, Math.min(endIdx - startIdx, bufferCount));
+  const output = new Float32Array(TARGET_SEGMENT_FRAMES * VALUES_PER_FRAME);
+
+  for (let i = 0; i < TARGET_SEGMENT_FRAMES; i += 1) {
+    const sourceOffset = Math.min(Math.floor((i / TARGET_SEGMENT_FRAMES) * availableLength), availableLength - 1);
+    const absoluteFrame = startIdx + sourceOffset;
+    const bufferIndex = ((absoluteFrame % BUFFER_LEN) + BUFFER_LEN) % BUFFER_LEN;
     output.set(
-      frameBufferUpdated.slice(bufIdx * VALUES_PER_FRAME_UPDATED, (bufIdx + 1) * VALUES_PER_FRAME_UPDATED),
-      i * VALUES_PER_FRAME_UPDATED
+      frameBuffer.subarray(bufferIndex * VALUES_PER_FRAME, (bufferIndex + 1) * VALUES_PER_FRAME),
+      i * VALUES_PER_FRAME,
     );
   }
+
   return output;
 }
 
-function updateVAD(lm: NormalizedLandmarks, frameIdx: number) {
-  const v = computeVelocity(lm);
-  const sv = getSmoothedVelocity(v);
+function emitVADState(nextState: VADState, velocity: number) {
+  if (vadState === nextState) return;
+  vadState = nextState;
+  postMessageToMain({ type: "VAD_STATE", state: vadState, velocity, timestamp: performance.now() });
+}
 
-  switch (vadState) {
-    case "IDLE":
-      if (sv > upperThreshold) { consecutiveAbove++; } else { consecutiveAbove = 0; }
-      if (consecutiveAbove >= 5) {
-        vadState = "SIGNING";
-        signStartIdx = frameIdx - 5;
-        consecutiveAbove = 0;
-        (self as unknown as Worker).postMessage({ type: "STATUS", state: "SIGNING", fps: 0 });
-      }
-      break;
-    case "SIGNING":
-      if (sv < lowerThreshold) { consecutiveBelow++; } else { consecutiveBelow = 0; }
-      if (consecutiveBelow >= 10) {
-        vadState = "COOLDOWN";
-        cooldownCounter = 0;
-        const frames = extractSignFrames(signStartIdx, frameIdx);
-        (self as unknown as Worker).postMessage({ type: "SIGN_READY", frames, frameCount: 60 });
-        (self as unknown as Worker).postMessage({ type: "STATUS", state: "COOLDOWN", fps: 0 });
-        consecutiveBelow = 0;
-      }
-      break;
-    case "COOLDOWN":
-      cooldownCounter++;
-      if (cooldownCounter >= 15) {
-        vadState = "IDLE";
-        (self as unknown as Worker).postMessage({ type: "STATUS", state: "IDLE", fps: 0 });
-      }
-      break;
+function updateVAD(landmarks: NormalizedLandmarks, currentFrameIdx: number) {
+  const velocity = smoothVelocity(computeVelocity(landmarks));
+
+  if (vadState === "IDLE") {
+    consecutiveAbove = velocity > upperThreshold ? consecutiveAbove + 1 : 0;
+    if (consecutiveAbove >= 5) {
+      signStartIdx = Math.max(0, currentFrameIdx - 5);
+      signStartedAt = performance.now();
+      consecutiveAbove = 0;
+      console.log(`[VAD] start velocity=${velocity.toFixed(4)}`);
+      emitVADState("SIGNING", velocity);
+    }
+    return;
+  }
+
+  if (vadState === "SIGNING") {
+    consecutiveBelow = velocity < lowerThreshold ? consecutiveBelow + 1 : 0;
+    if (consecutiveBelow >= 10) {
+      const frames = extractSegment(signStartIdx, currentFrameIdx);
+      const endedAt = performance.now();
+      console.log(`[VAD] end frames=${TARGET_SEGMENT_FRAMES} velocity=${velocity.toFixed(4)}`);
+      postMessageToMain(
+        {
+          type: "SIGN_SEGMENT",
+          frames,
+          frameCount: TARGET_SEGMENT_FRAMES,
+          startedAt: signStartedAt,
+          endedAt,
+        },
+        [frames.buffer],
+      );
+      consecutiveBelow = 0;
+      cooldownFrames = 0;
+      emitVADState("COOLDOWN", velocity);
+    }
+    return;
+  }
+
+  cooldownFrames += 1;
+  if (cooldownFrames >= 15) {
+    emitVADState("IDLE", velocity);
   }
 }
 
-// --- Config ---
-let poseEnabled = true;
+function updateMetrics(latencyMs: number) {
+  processedFrames += 1;
+  latencyTotal += latencyMs;
 
-// --- Init & Frame Loop ---
-let frameIdx = 0;
+  const now = performance.now();
+  const elapsed = now - metricsWindowStartedAt;
+  if (elapsed < 1000) return;
 
-async function initLandmarker() {
-  const vision = await FilesetResolver.forVisionTasks(
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-  );
+  postMessageToMain({
+    type: "METRICS",
+    fps: Math.round((processedFrames * 1000) / elapsed),
+    latencyMs: Math.round(latencyTotal / Math.max(1, processedFrames)),
+    droppedFrames,
+  });
+
+  metricsWindowStartedAt = now;
+  processedFrames = 0;
+  droppedFrames = 0;
+  latencyTotal = 0;
+}
+
+async function initLandmarkers() {
+  const vision = await FilesetResolver.forVisionTasks(WASM_ROOT);
+
   handLandmarker = await HandLandmarker.createFromOptions(vision, {
     baseOptions: {
-      modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task",
+      modelAssetPath: HAND_MODEL,
       delegate: "GPU",
     },
     runningMode: "VIDEO",
     numHands: 2,
-    minHandDetectionConfidence: 0.3,
-    minHandPresenceConfidence: 0.3,
-    minTrackingConfidence: 0.3,
+    minHandDetectionConfidence: 0.35,
+    minHandPresenceConfidence: 0.35,
+    minTrackingConfidence: 0.35,
   });
+
   poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
     baseOptions: {
-      modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task",
+      modelAssetPath: POSE_MODEL,
       delegate: "GPU",
     },
     runningMode: "VIDEO",
-    numPoseLandmarks: 33,
     minPoseDetectionConfidence: 0.4,
     minPosePresenceConfidence: 0.4,
     minTrackingConfidence: 0.4,
   });
 }
 
-self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
-  const msg = e.data;
+self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
+  const message = event.data;
 
-  if (msg.type === "INIT") {
-    await initLandmarker();
-    (self as unknown as Worker).postMessage({ type: "STATUS", state: "IDLE", fps: 0 });
-    return;
-  }
-
-  if (msg.type === "SET_CONFIG") {
-    poseEnabled = msg.poseEnabled;
-    return;
-  }
-
-  if (msg.type === "FRAME" && handLandmarker && poseLandmarker) {
-    // Discard frames older than 80ms to prevent queue buildup causing lag
-    const age = performance.now() - msg.timestamp;
-    if (age > 80) {
-      msg.frame.close();
-      return;
-    }
-
+  if (message.type === "INIT") {
     try {
-      const handResult = handLandmarker.detectForVideo(msg.frame, msg.timestamp);
-      // Only run expensive pose model when needed (dynamic signs / word drills)
-      const poseResult = poseEnabled
-        ? poseLandmarker.detectForVideo(msg.frame, msg.timestamp)
-        : { landmarks: [] };
-      msg.frame.close();
-
-      const rawHands = handResult.landmarks ?? [];
-      const rawHandedness = (handResult.handedness ?? []).map(h => h[0]?.categoryName ?? "Right");
-      const rawPose = poseResult.landmarks?.[0] ?? [];
-
-      const normalized = normalize(rawHands, rawHandedness, rawPose);
-      const arr = landmarksToArrayUpdated(normalized);
-      pushFrame(arr);
-      updateVAD(normalized, frameIdx);
-      frameIdx++;
-
-      (self as unknown as Worker).postMessage({
-        type: "LANDMARKS",
-        landmarks: normalized,
-        rawHands: rawHands.map(h => h.map(p => ({ x: p.x, y: p.y, z: p.z }))),
-        timestamp: msg.timestamp,
+      await initLandmarkers();
+      postMessageToMain({ type: "READY" });
+      postMessageToMain({ type: "VAD_STATE", state: "IDLE", velocity: 0, timestamp: performance.now() });
+    } catch (error) {
+      postMessageToMain({
+        type: "ERROR",
+        message: error instanceof Error ? error.message : "MediaPipe initialization failed",
       });
-    } catch {
-      /* skip malformed frame */
     }
+    return;
+  }
+
+  if (message.type === "SET_CONFIG") {
+    poseEnabled = message.poseEnabled;
+    return;
+  }
+
+  if (message.type !== "FRAME" || !handLandmarker || !poseLandmarker) return;
+
+  const age = performance.now() - message.timestamp;
+  if (age > MAX_FRAME_AGE_MS) {
+    droppedFrames += 1;
+    message.frame.close();
+    return;
+  }
+
+  let frameClosed = false;
+  try {
+    const handResult = handLandmarker.detectForVideo(message.frame, message.timestamp);
+    const poseResult = poseEnabled ? poseLandmarker.detectForVideo(message.frame, message.timestamp) : { landmarks: [] };
+    message.frame.close();
+    frameClosed = true;
+
+    const rawHands = handResult.landmarks ?? [];
+    const rawHandedness = (handResult.handedness ?? []).map((hand) => hand[0]?.categoryName ?? "Right");
+    const rawPose = poseResult.landmarks?.[0] ?? [];
+    const normalized = normalize(rawHands, rawHandedness, rawPose);
+
+    pushFrame(landmarksToArray(normalized));
+    updateVAD(normalized, frameIdx);
+    frameIdx += 1;
+
+    postMessageToMain({
+      type: "LANDMARKS",
+      landmarks: normalized,
+      rawHands: rawHands.map((hand) => hand.map((point) => ({ x: point.x, y: point.y, z: point.z }))),
+      timestamp: message.timestamp,
+    });
+
+    updateMetrics(performance.now() - message.timestamp);
+  } catch (error) {
+    if (!frameClosed) message.frame.close();
+    postMessageToMain({
+      type: "ERROR",
+      message: error instanceof Error ? error.message : "Frame processing failed",
+    });
   }
 };

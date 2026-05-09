@@ -1,63 +1,96 @@
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseWebcamReturn {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  videoRef: React.RefObject<HTMLVideoElement>;
   isStreaming: boolean;
   error: string | null;
-  startCapture: (onFrame: (frame: ImageBitmap, ts: number) => void) => void;
+  startCapture: (onFrame: (frame: ImageBitmap, timestamp: number) => void) => void;
   stopCapture: () => void;
 }
 
 export function useWebcam(): UseWebcamReturn {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null!);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
+  const onFrameRef = useRef<((frame: ImageBitmap, timestamp: number) => void) | null>(null);
+  const frameInFlightRef = useRef(false);
+
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const startCapture = useCallback(
-    (onFrame: (frame: ImageBitmap, ts: number) => void) => {
-      navigator.mediaDevices
-        .getUserMedia({ video: { width: 640, height: 480, facingMode: "user" } })
-        .then((stream) => {
-          streamRef.current = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.play();
-          }
-          setIsStreaming(true);
-
-          let lastTime = 0;
-          const tick = async (now: number) => {
-            if (!videoRef.current || videoRef.current.readyState < 2) {
-              rafRef.current = requestAnimationFrame(tick);
-              return;
-            }
-            
-            if (now - lastTime >= 33) { // ~30fps
-              try {
-                const bmp = await createImageBitmap(videoRef.current);
-                onFrame(bmp, now);
-                lastTime = now;
-              } catch { /* skip frame */ }
-            }
-            rafRef.current = requestAnimationFrame(tick);
-          };
-          rafRef.current = requestAnimationFrame(tick);
-        })
-        .catch((err) => setError(err.message));
-    },
-    []
-  );
-
   const stopCapture = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    rafRef.current = 0;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    frameInFlightRef.current = false;
     setIsStreaming(false);
   }, []);
 
-  useEffect(() => () => stopCapture(), [stopCapture]);
+  const startCapture = useCallback(
+    (onFrame: (frame: ImageBitmap, timestamp: number) => void) => {
+      onFrameRef.current = onFrame;
+      if (streamRef.current) return;
+
+      navigator.mediaDevices
+        .getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            frameRate: { ideal: 30, max: 30 },
+            facingMode: "user",
+          },
+          audio: false,
+        })
+        .then((stream) => {
+          streamRef.current = stream;
+          setError(null);
+
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            void videoRef.current.play();
+          }
+
+          setIsStreaming(true);
+
+          let lastFrameAt = 0;
+          const tick = async (now: number) => {
+            const video = videoRef.current;
+            if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+              rafRef.current = requestAnimationFrame(tick);
+              return;
+            }
+
+            if (!frameInFlightRef.current && now - lastFrameAt >= 33) {
+              frameInFlightRef.current = true;
+              try {
+                const bitmap = await createImageBitmap(video);
+                onFrameRef.current?.(bitmap, performance.now());
+                lastFrameAt = now;
+              } catch {
+                // Dropped capture frames are expected while permissions/video warm up.
+              } finally {
+                frameInFlightRef.current = false;
+              }
+            }
+
+            rafRef.current = requestAnimationFrame(tick);
+          };
+
+          rafRef.current = requestAnimationFrame(tick);
+        })
+        .catch((captureError: unknown) => {
+          const message = captureError instanceof Error ? captureError.message : "Camera permission was denied";
+          setError(message);
+          setIsStreaming(false);
+        });
+    },
+    [],
+  );
+
+  useEffect(() => stopCapture, [stopCapture]);
 
   return { videoRef, isStreaming, error, startCapture, stopCapture };
 }

@@ -1,10 +1,19 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
+import { SignReference } from "@/components/lesson/SignReference";
+
+interface SkillNode {
+  id: string;
+  label: string;
+  completed: boolean;
+  signs?: string[];
+  guidedOnly?: string[];
+}
 
 interface Props {
-  node: any | null;
+  node: SkillNode | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -12,62 +21,57 @@ interface Props {
 export function SkillNodePanel({ node, isOpen, onClose }: Props) {
   return (
     <AnimatePresence>
-      {isOpen && node && (
+      {isOpen && node ? (
         <>
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+            className="fixed inset-0 z-40 bg-[#b985e8]/50 backdrop-blur-sm"
           />
-          <motion.div
+          <motion.aside
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 h-full w-full max-w-md bg-gray-900 border-l border-gray-800 p-8 shadow-2xl z-50 overflow-y-auto"
+            transition={{ type: "spring", damping: 24, stiffness: 220 }}
+            className="fixed right-0 top-0 z-50 flex h-full w-full max-w-lg flex-col overflow-y-auto border-l border-[#e5e5e5] bg-white p-8 shadow-2xl"
           >
-            <button onClick={onClose} className="absolute top-6 right-6 text-gray-400 hover:text-white">
-              ✕
+            <button type="button" onClick={onClose} className="ml-auto rounded-full border border-[#e5e5e5] px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-[#777777] hover:bg-[#f5f5f5]">
+              Close
             </button>
-            
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-3xl mb-6">
-              {node.completed ? "★" : "☆"}
+
+            <div className="mt-6">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#1cb0f6]">Local lesson</p>
+              <h2 className="mt-3 text-4xl font-black text-[#3c3c3c]">{node.label}</h2>
+              <p className="mt-3 text-sm leading-6 text-[#777777]">
+                Work through the prompt letters in order. Guided letters use the reference card only, while detectable letters listen for a stable match before advancing.
+              </p>
             </div>
-            
-            <h2 className="text-3xl font-bold text-white mb-2">{node.label}</h2>
-            <p className="text-gray-400 mb-8">Master the fundamentals to unlock new signs and conversational abilities.</p>
-            
-            <div className="bg-gray-800/50 rounded-2xl p-6 mb-8 border border-gray-700/50">
-              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Vocabulary</h3>
-              <div className="flex flex-wrap gap-2">
-                {node.signs?.map((sign: string) => (
-                  <span key={sign} className="bg-gray-700 text-white px-3 py-1 rounded-full font-bold">
-                    {sign}
-                  </span>
-                ))}
-              </div>
+
+            <div className="mt-8 grid grid-cols-2 gap-4">
+              {node.signs?.map((sign) => (
+                <div key={sign} className="rounded-2xl border border-[#e5e5e5] bg-[#f5f5f5] p-4">
+                  <SignReference sign={sign} caption={(node.guidedOnly ?? []).includes(sign) ? "Guided" : "Detectable"} />
+                </div>
+              ))}
             </div>
-            
-            <div className="flex flex-col gap-3">
-              <Link 
-                href={`/lesson/${node.id}`}
-                className="block w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-center py-4 rounded-xl transition-colors shadow-lg shadow-blue-900/20"
-              >
-                Start Lesson
-              </Link>
-              
-              <Link 
-                href={`/lesson/${node.id}?mode=practice`}
-                className="block w-full bg-gray-800 hover:bg-gray-700 text-white font-bold text-center py-4 rounded-xl transition-colors border border-gray-700"
-              >
-                Free Practice
-              </Link>
+
+            <div className="mt-8 rounded-2xl border border-[#e5e5e5] bg-[#f5f5f5] p-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b0b0b0]">Status</p>
+              <p className="mt-2 text-lg font-black text-[#3c3c3c]">{node.completed ? "Completed locally" : "Ready to practice"}</p>
             </div>
-          </motion.div>
+
+            <Link
+              href={`/lesson/${node.id}`}
+              className="mt-8 inline-flex h-14 items-center justify-center text-sm font-black uppercase tracking-[0.18em] text-white transition hover:opacity-90"
+              style={{ background: "#1cb0f6", boxShadow: "0 4px 0 #0a9de0", borderRadius: "9999px" }}
+            >
+              Start Lesson
+            </Link>
+          </motion.aside>
         </>
-      )}
+      ) : null}
     </AnimatePresence>
   );
 }

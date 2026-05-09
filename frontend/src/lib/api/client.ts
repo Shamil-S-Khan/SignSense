@@ -40,7 +40,7 @@ class ApiClient {
     return this.fetch<T>(endpoint, { ...options, method: "GET" });
   }
 
-  post<T>(endpoint: string, data: any, options: RequestInit = {}) {
+  post<T>(endpoint: string, data: unknown, options: RequestInit = {}) {
     return this.fetch<T>(endpoint, {
       ...options,
       method: "POST",

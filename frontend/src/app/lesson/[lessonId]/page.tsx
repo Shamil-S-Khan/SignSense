@@ -1,246 +1,294 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, useParams, useRouter } from "next/navigation";
-import { useSessionStore } from "@/stores/sessionStore";
-import { apiClient } from "@/lib/api/client";
-import { WebcamFeed } from "@/components/webcam/WebcamFeed";
-import { HeartBar } from "@/components/ui/HeartBar";
-import { ScoreBars } from "@/components/lesson/ScoreBars";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import { ResultsScreen } from "@/components/lesson/ResultsScreen";
+import { ScoreBars } from "@/components/lesson/ScoreBars";
 import { SignReference } from "@/components/lesson/SignReference";
-import { CoachBubble } from "@/components/lesson/CoachBubble";
-import { useSignWebSocket } from "@/hooks/useWebSocket";
+import { HeartBar } from "@/components/ui/HeartBar";
+import { WebcamFeed } from "@/components/webcam/WebcamFeed";
+import { smoothDetections, shouldAllowSuccess, type DetectionSample, type ScoreBreakdown } from "@/lib/practice/feedback";
+import { getLessonById, isGuidedOnlyLetter } from "@/lib/practice/lesson-data";
+import { useLocalPracticeStore } from "@/lib/practice/progress";
 
-import { toast } from "react-hot-toast";
+const INITIAL_SCORES: ScoreBreakdown = { handshape: 0, movement: 0, orientation: 0 };
 
 export default function LessonPage() {
-  const params = useParams();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const lessonId = params.lessonId as string;
-  const isPracticeMode = searchParams.get("mode") === "practice";
-  
-  const { heartsRemaining, loseHeart, setLesson, clearSession } = useSessionStore();
-  const { isConnected, prediction, scores: wsScores, coachingTip, sendLandmarks, startDrill, endDrill } = useSignWebSocket();
-  
-  const [lessonData, setLessonData] = useState<any>(null);
-  const [currentSignIndex, setCurrentSignIndex] = useState(0);
-  const [scores, setScores] = useState({ handshape: 0, movement: 0, orientation: 0 });
-  const [isFinished, setIsFinished] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
-  const [drillActive, setDrillActive] = useState(false);
-  const [coachLoading, setCoachLoading] = useState(false);
-  
+  const params = useParams<{ lessonId: string }>();
+  const lesson = getLessonById(params.lessonId);
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [scores, setScores] = useState<ScoreBreakdown>(INITIAL_SCORES);
+  const [feedback, setFeedback] = useState("Hold the target shape until the read stabilizes.");
+  const [lastDetection, setLastDetection] = useState<{ sign: string; confidence: number } | null>(null);
+  const [overlayMessage, setOverlayMessage] = useState<string | null>(null);
+  const [overlayTone, setOverlayTone] = useState<"success" | "guided" | "neutral">("neutral");
+  const [successfulLetters, setSuccessfulLetters] = useState<string[]>([]);
+  const [accuracyHistory, setAccuracyHistory] = useState<number[]>([]);
+  const [showResults, setShowResults] = useState(false);
+
+  const detectionHistoryRef = useRef<DetectionSample[]>([]);
+  const lastSuccessAtRef = useRef<number | null>(null);
+  const lastPenaltyAtRef = useRef<number | null>(null);
+
+  const heartsRemaining = useLocalPracticeStore((state) => state.heartsRemaining);
+  const startLesson = useLocalPracticeStore((state) => state.startLesson);
+  const loseHeart = useLocalPracticeStore((state) => state.loseHeart);
+  const setHeartsRemaining = useLocalPracticeStore((state) => state.setHeartsRemaining);
+  const awardLetterSuccess = useLocalPracticeStore((state) => state.awardLetterSuccess);
+  const markLessonComplete = useLocalPracticeStore((state) => state.markLessonComplete);
+
   useEffect(() => {
-    setLesson(lessonId);
-    apiClient.get(`/api/lessons/${lessonId}`)
-      .then((data: any) => setLessonData(data))
-      .catch(console.error);
-      
-    return () => clearSession();
-  }, [lessonId]);
+    if (!lesson) return;
+    startLesson(lesson.id);
+    setSuccessfulLetters([]);
+    setAccuracyHistory([]);
+    setCurrentIndex(0);
+    setScores(INITIAL_SCORES);
+    setFeedback(`Lesson ${lesson.title} loaded. Start with ${lesson.letters[0]}.`);
+  }, [lesson, startLesson]);
 
-  // Start a drill when we have data and WS is connected
   useEffect(() => {
-    if (lessonData && isConnected && !drillActive && !isFinished) {
-      const targetSign = lessonData.signs[currentSignIndex];
-      startDrill(targetSign);
-      setDrillActive(true);
+    if (!lesson) return;
+    if (heartsRemaining === 0) {
+      setHeartsRemaining(5);
+      setCurrentIndex(0);
+      setSuccessfulLetters([]);
+      setAccuracyHistory([]);
+      setFeedback("Hearts reset. Take another run through the lesson.");
+      detectionHistoryRef.current = [];
+      setScores(INITIAL_SCORES);
     }
-  }, [lessonData, isConnected, currentSignIndex, drillActive, isFinished]);
+  }, [heartsRemaining, lesson, setHeartsRemaining]);
 
-  // Consume WebSocket predictions in real-time
-  useEffect(() => {
-    if (!prediction || !lessonData || isCorrect || isFinished) return;
+  if (!lesson) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#b985e8] px-4">
+        <section className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#1cb0f6]">Missing lesson</p>
+          <h1 className="mt-3 text-3xl font-black text-[#3c3c3c]">{params.lessonId}</h1>
+          <p className="mt-4 text-sm leading-6 text-[#777777]">That lesson is not part of the local curriculum.</p>
+          <Link href="/skill-tree" className="mt-6 inline-flex h-11 items-center px-5 text-sm font-bold text-white hover:opacity-90"
+            style={{ background: "#1cb0f6", boxShadow: "0 4px 0 #0a9de0", borderRadius: "9999px" }}>
+            Back to tree
+          </Link>
+        </section>
+      </main>
+    );
+  }
 
-    const targetSign = lessonData.signs[currentSignIndex];
-    
-    // Debug: log predictions
-    if (Math.random() < 0.05) {
-      console.log(`[Lesson] prediction='${prediction.prediction}' conf=${prediction.confidence} target='${targetSign}' match=${prediction.prediction.toUpperCase() === targetSign.toUpperCase()}`);
+  const currentLetter = lesson.letters[currentIndex] ?? lesson.letters[0];
+  const isGuided = isGuidedOnlyLetter(currentLetter);
+  const completionPercent = Math.round((successfulLetters.length / lesson.letters.length) * 100);
+
+  const finishLetter = (accuracy: number) => {
+    const completedLetter = currentLetter;
+    awardLetterSuccess({ letter: completedLetter, lessonId: lesson.id, xpDelta: 12, accuracy });
+    setSuccessfulLetters((current) => (current.includes(completedLetter) ? current : [...current, completedLetter]));
+    setAccuracyHistory((current) => [...current, accuracy]);
+    setScores(INITIAL_SCORES);
+    setLastDetection(null);
+    detectionHistoryRef.current = [];
+
+    if (currentIndex === lesson.letters.length - 1) {
+      markLessonComplete(lesson.id);
+      setTimeout(() => setShowResults(true), 900);
+      return;
     }
-    
-    if (prediction.prediction.toUpperCase() === targetSign.toUpperCase() && prediction.confidence > 0.15) {
-      setIsCorrect(true);
-      toast.success("Nice job!", { duration: 1000 });
-      
-      // End the drill on backend
-      endDrill();
-      setDrillActive(false);
-      setCoachLoading(true);
 
-      setTimeout(() => {
-        setIsCorrect(false);
-        if (currentSignIndex + 1 < lessonData.signs.length) {
-          setCurrentSignIndex(prev => prev + 1);
-          setScores({ handshape: 0, movement: 0, orientation: 0 });
-        } else {
-          apiClient.post(`/api/lessons/${lessonId}/complete`, {
-            hearts_remaining: heartsRemaining,
-            accuracy: 95.0
-          }).then(() => setIsFinished(true));
-        }
-      }, 2000);
+    window.setTimeout(() => {
+      setCurrentIndex((current) => current + 1);
+      setFeedback(`Next up: ${lesson.letters[currentIndex + 1]}.`);
+      setOverlayMessage(null);
+    }, 1000);
+  };
+
+  const handleDetection = (sign: string, confidence: number, detailScores: ScoreBreakdown) => {
+    setLastDetection({ sign, confidence });
+    setScores(detailScores);
+
+    detectionHistoryRef.current = [...detectionHistoryRef.current.slice(-2), { sign, confidence, scores: detailScores }];
+    const smoothed = smoothDetections(detectionHistoryRef.current);
+    if (!smoothed) return;
+
+    if (smoothed.sign === currentLetter && smoothed.confidence >= 0.45 && shouldAllowSuccess(lastSuccessAtRef.current, performance.now())) {
+      lastSuccessAtRef.current = performance.now();
+      setOverlayTone("success");
+      setOverlayMessage("Correct");
+      setFeedback(`${currentLetter} is locked in. Great hold.`);
+      finishLetter(Math.round((smoothed.scores.handshape + smoothed.scores.movement + smoothed.scores.orientation) / 3));
+      return;
     }
-  }, [prediction]);
 
-  // Consume WebSocket scoring results
-  useEffect(() => {
-    if (wsScores) {
-      setScores({
-        handshape: wsScores.handshape,
-        movement: wsScores.movement,
-        orientation: wsScores.orientation,
-      });
+    if (smoothed.sign !== currentLetter && smoothed.confidence >= 0.6 && shouldAllowSuccess(lastPenaltyAtRef.current, performance.now(), 1300)) {
+      lastPenaltyAtRef.current = performance.now();
+      loseHeart();
+      setFeedback(`Stable read is ${smoothed.sign}. Reset and try ${currentLetter} again.`);
     }
-  }, [wsScores]);
+  };
 
-  // Coaching tip received
-  useEffect(() => {
-    if (coachingTip) {
-      setCoachLoading(false);
-    }
-  }, [coachingTip]);
+  const handleGuidedContinue = () => {
+    setOverlayTone("guided");
+    setOverlayMessage("Guided");
+    setFeedback(`${currentLetter} is guided. Copy the motion and continue.`);
+    finishLetter(88);
+  };
 
-  // Fallback handler for local fingerpose (when WS is disconnected)
-  const handleSignDetected = useCallback((
-    sign: string, 
-    confidence: number, 
-    detailScores?: { handshape: number; movement: number; orientation: number }
-  ) => {
-    if (isFinished || !lessonData || isCorrect || isConnected) return;
-    
-    if (detailScores) setScores(detailScores);
-
-    const targetSign = lessonData.signs[currentSignIndex];
-    
-    if (sign.toUpperCase() === targetSign.toUpperCase() && confidence > 0.25) {
-      setIsCorrect(true);
-      toast.success("Nice job!", { duration: 1000 });
-      
-      setTimeout(() => {
-        setIsCorrect(false);
-        if (currentSignIndex + 1 < lessonData.signs.length) {
-          setCurrentSignIndex(prev => prev + 1);
-          setScores({ handshape: 0, movement: 0, orientation: 0 });
-        } else {
-          apiClient.post(`/api/lessons/${lessonId}/complete`, {
-            hearts_remaining: heartsRemaining,
-            accuracy: 95.0
-          }).then(() => setIsFinished(true));
-        }
-      }, 1500);
-    }
-  }, [isFinished, lessonData, isCorrect, isConnected, currentSignIndex, heartsRemaining, lessonId]);
-
-  if (!lessonData) return <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">Loading...</div>;
+  if (showResults) {
+    const averageAccuracy =
+      accuracyHistory.length > 0 ? Math.round(accuracyHistory.reduce((sum, value) => sum + value, 0) / accuracyHistory.length) : 0;
+    return <ResultsScreen xpEarned={lesson.letters.length * 12} accuracy={averageAccuracy} />;
+  }
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 relative overflow-hidden">
-      {/* Background Glow */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-900/20 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-900/10 blur-[120px] rounded-full pointer-events-none" />
+    <main className="min-h-screen bg-[#b985e8] px-4 py-5 text-[#3c3c3c] md:px-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-5">
 
-      <header className="max-w-6xl mx-auto flex justify-between items-center mb-8 relative z-10">
-        <button 
-          onClick={() => router.push("/skill-tree")} 
-          className="group flex items-center gap-2 px-4 py-2 bg-gray-900/50 hover:bg-gray-800 rounded-xl transition-all border border-gray-800"
-        >
-          <span className="text-gray-400 group-hover:text-white transition-colors">✕</span>
-          <span className="text-sm font-medium text-gray-400 group-hover:text-white">
-            {isPracticeMode ? "Stop Practice" : "Exit Lesson"}
-          </span>
-        </button>
-        
-        <div className="flex-1 max-w-md mx-8">
-          <div className="flex justify-between text-[10px] uppercase tracking-widest text-gray-500 mb-2 font-bold">
-            <span>{isPracticeMode ? "Free Practice" : "Progress"}</span>
-            {!isPracticeMode && <span>{Math.round((currentSignIndex / lessonData.signs.length) * 100)}%</span>}
-          </div>
-          {!isPracticeMode && (
-            <div className="bg-gray-900 h-2.5 rounded-full overflow-hidden border border-gray-800">
-              <div 
-                className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all duration-500 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]"
-                style={{ width: `${(currentSignIndex / lessonData.signs.length) * 100}%` }}
-              />
-            </div>
-          )}
-        </div>
+        {/* ── Header ─────────────────────────────────────────────── */}
+        <header className="relative overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white p-5 shadow-md">
 
-        <div className="bg-gray-900/50 px-4 py-2 rounded-xl border border-gray-800">
-          {isPracticeMode ? (
-            <div className="flex items-center gap-2 text-blue-400 font-bold text-xs uppercase tracking-widest">
-              <span>∞ Lives</span>
-            </div>
-          ) : (
-            <HeartBar hearts={heartsRemaining} />
-          )}
-        </div>
-      </header>
-
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-10">
-        {/* Left Side: Target Sign & Analysis */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
-          <div className={`relative flex flex-col items-center justify-center bg-gray-900/40 backdrop-blur-md border-2 transition-all duration-500 ${isCorrect ? 'border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.2)]' : 'border-gray-800'} rounded-[2.5rem] p-8 aspect-square lg:aspect-auto lg:h-[420px]`}>
-            <h2 className="text-xs uppercase tracking-[0.2em] font-black text-gray-500 mb-6">{isCorrect ? "Perfect Match!" : "Target Sign"}</h2>
-            
-            <div className="flex flex-col items-center gap-8">
-              <div className={`text-[10rem] leading-none font-black transition-all duration-500 ${isCorrect ? 'text-green-500 scale-110' : 'text-white drop-shadow-[0_0_15px_rgba(59,130,246,0.3)]'}`}>
-                {lessonData.signs[currentSignIndex]}
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="mb-1 flex items-center gap-2">
+                <Link href="/skill-tree" className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#b0b0b0] transition hover:text-[#777777]">
+                  Skill Tree
+                </Link>
+                <span className="text-[#d0d0d0]">/</span>
+                <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#1cb0f6]">Lesson</span>
               </div>
-              
-              {!isCorrect && <SignReference sign={lessonData.signs[currentSignIndex]} />}
+              <h1 className="font-display text-3xl font-extrabold text-[#3c3c3c] md:text-4xl">{lesson.title}</h1>
             </div>
 
-            {isPracticeMode && !isCorrect && (
-               <button 
-                onClick={() => setCurrentSignIndex((prev) => (prev + 1) % lessonData.signs.length)}
-                className="mt-4 px-6 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-bold uppercase tracking-widest text-gray-400 transition-colors"
-               >
-                 Skip Sign
-               </button>
-            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <HeartBar hearts={heartsRemaining} />
 
-            {isCorrect && (
-              <div className="absolute bottom-8 animate-bounce text-green-400 font-bold tracking-widest uppercase text-xs">
-                Nice Job!
+              {/* Segmented progress rail */}
+              <div className="flex items-center gap-1">
+                {lesson.letters.map((letter) => {
+                  const done = successfulLetters.includes(letter);
+                  const active = letter === currentLetter && !done;
+                  return (
+                    <div
+                      key={letter}
+                      className={`h-2 w-6 rounded-full transition-all duration-300 ${
+                        done
+                          ? "bg-[#58cc02]"
+                          : active
+                            ? "animate-ring-pulse bg-[#ff4b8c]"
+                            : "bg-[#e5e5e5]"
+                      }`}
+                      title={letter}
+                    />
+                  );
+                })}
               </div>
-            )}
-          </div>
-          
-          <div className="bg-gray-900/40 backdrop-blur-md border border-gray-800 rounded-[2.5rem] p-8 flex-1">
-            <h3 className="text-xs uppercase tracking-[0.2em] font-black text-gray-500 mb-6 text-center">Live Analysis</h3>
-            <ScoreBars 
-              handshapeScore={scores.handshape} 
-              movementScore={scores.movement} 
-              orientationScore={scores.orientation} 
-            />
-          </div>
+              <span className="text-[11px] font-black text-[#b0b0b0]">{completionPercent}%</span>
 
-          {/* AI Coach Bubble */}
-          <CoachBubble tip={coachingTip} isLoading={coachLoading} />
-        </div>
-        
-        {/* Right Side: Webcam Feed (Main centerpiece) */}
-        <div className="lg:col-span-8">
-          <div className={`relative aspect-[4/3] lg:aspect-auto lg:h-[600px] bg-black rounded-[2.5rem] overflow-hidden border-2 transition-all duration-500 ${isCorrect ? 'border-green-500 shadow-[0_0_40px_rgba(34,197,94,0.3)]' : 'border-blue-900/30 shadow-2xl shadow-blue-900/20'}`}>
-             <WebcamFeed 
-               onSignDetected={handleSignDetected}
-               onLandmarksForWS={sendLandmarks}
-               wsConnected={isConnected}
-               disablePose={lessonData.title.toLowerCase().includes('alphabet') || lessonData.title.toLowerCase().includes('basics')}
-             />
-             
-             {/* Target Sign Overlay for reference */}
-             <div className="absolute bottom-8 right-8 w-24 h-24 bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center select-none pointer-events-none">
-                <span className="text-4xl font-black text-white/40">{lessonData.signs[currentSignIndex]}</span>
-             </div>
+              <Link
+                href="/skill-tree"
+                className="inline-flex h-10 items-center rounded-xl border border-[#e5e5e5] bg-[#f5f5f5] px-4 text-[11px] font-black uppercase tracking-[0.16em] text-[#777777] transition hover:bg-[#eeeeee]"
+              >
+                ← Tree
+              </Link>
+            </div>
           </div>
-        </div>
+        </header>
+
+        <section className="grid flex-1 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
+          <WebcamFeed disablePose overlayMessage={overlayMessage} overlayTone={overlayTone} onSignDetected={isGuided ? undefined : handleDetection} />
+
+          <aside className="flex flex-col gap-4">
+            {/* Prompt card */}
+            <section className="rounded-3xl border border-[#e5e5e5] bg-white p-5 shadow-md">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#b0b0b0]">Prompt</p>
+              <div className="mt-4 flex items-start justify-between gap-4">
+                <div>
+                  <div
+                    className="font-display mt-2 font-black leading-none"
+                    style={{
+                      fontSize: "7rem",
+                      color: "#3c3c3c",
+                      WebkitTextFillColor: "#3c3c3c",
+                      textShadow: overlayMessage === "Correct" ? "0 0 30px rgba(52,211,153,0.6)" : undefined,
+                    }}
+                  >
+                    {currentLetter}
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-[#777777]">
+                    {isGuided
+                      ? "Guided letter — follow the reference image and mark when ready."
+                      : "Hold the shape until the read stabilizes. A correct match advances automatically."}
+                  </p>
+                </div>
+                <SignReference sign={currentLetter} isHighlighted={overlayMessage === "Correct"} caption={isGuided ? "Guided" : "Match this"} />
+              </div>
+
+              {isGuided ? (
+                <button
+                  type="button"
+                  onClick={handleGuidedContinue}
+                  className="mt-5 inline-flex h-11 w-full items-center justify-center text-sm font-black uppercase tracking-[0.16em] text-white transition hover:opacity-90"
+                  style={{ background: "#ff9600", boxShadow: "0 4px 0 #cc7800", borderRadius: "9999px" }}
+                >
+                  ✅ Mark Guided Practice
+                </button>
+              ) : null}
+            </section>
+
+            {/* Lesson path */}
+            <section className="rounded-3xl border border-[#e5e5e5] bg-white p-5 shadow-md">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#b0b0b0]">Lesson path</p>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {lesson.letters.map((letter, index) => {
+                  const completed = successfulLetters.includes(letter);
+                  const active = index === currentIndex;
+
+                  return (
+                    <div
+                      key={letter}
+                      className={`relative overflow-hidden rounded-2xl border p-3 text-center transition-all duration-200 ${
+                        completed
+                          ? "border-[#58cc02]/30 bg-[#edffd6]"
+                          : active
+                            ? "border-[#ff4b8c]/40 bg-[#ffe8f2]"
+                            : "border-[#e5e5e5] bg-[#f5f5f5]"
+                      }`}
+                    >
+                      <p className="font-display relative text-2xl font-black text-[#3c3c3c]">{letter}</p>
+                      <p
+                        className={`relative mt-1 text-[10px] font-bold uppercase tracking-[0.18em] ${
+                          completed ? "text-[#45a301]" : active ? "text-[#ff4b8c]" : "text-[#b0b0b0]"
+                        }`}
+                      >
+                        {completed ? "✓ Done" : active ? "Now" : isGuidedOnlyLetter(letter) ? "Guided" : "Queued"}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* Feedback */}
+            <section className="rounded-3xl border border-[#e5e5e5] bg-white p-5 shadow-md">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#b0b0b0]">Feedback</p>
+              <p className="mt-3 min-h-12 text-sm leading-6 text-[#777777]">{feedback}</p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-[#e5e5e5] bg-[#f5f5f5] px-3 py-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#b0b0b0]">Detected</p>
+                  <p className="mt-0.5 text-base font-black text-[#3c3c3c]">{lastDetection?.sign ?? "—"}</p>
+                </div>
+                <div className="rounded-xl border border-[#e5e5e5] bg-[#f5f5f5] px-3 py-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#b0b0b0]">Confidence</p>
+                  <p className="mt-0.5 text-base font-black text-[#3c3c3c]">{lastDetection ? `${Math.round(lastDetection.confidence * 100)}%` : "—"}</p>
+                </div>
+              </div>
+            </section>
+
+            <ScoreBars handshapeScore={scores.handshape} movementScore={scores.movement} orientationScore={scores.orientation} />
+          </aside>
+        </section>
       </div>
-      
-      {isFinished && <ResultsScreen xpEarned={50} accuracy={95} />}
     </main>
   );
 }

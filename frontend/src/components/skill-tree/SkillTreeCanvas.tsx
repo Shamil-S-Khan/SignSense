@@ -23,14 +23,11 @@ interface Props {
 }
 
 export function SkillTreeCanvas({ nodes, edges, onNodeClick }: Props) {
-  // Simple cubic bezier drawing
   const drawEdge = (fromNode: Node, toNode: Node) => {
     const startX = fromNode.x;
     const startY = fromNode.y;
     const endX = toNode.x;
     const endY = toNode.y;
-    
-    // Control points for vertical tree
     const cp1x = startX;
     const cp1y = startY + (endY - startY) / 2;
     const cp2x = endX;
@@ -40,49 +37,59 @@ export function SkillTreeCanvas({ nodes, edges, onNodeClick }: Props) {
   };
 
   return (
-    <div className="relative w-full max-w-2xl mx-auto h-[800px]">
-      <svg className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
-        {edges.map((edge, i) => {
-          const fromNode = nodes.find(n => n.id === edge.from);
-          const toNode = nodes.find(n => n.id === edge.to);
+    <div className="relative mx-auto h-[860px] w-full max-w-3xl overflow-hidden rounded-[2rem] border border-[#e5e5e5] bg-white p-8 shadow-md">
+      <svg className="pointer-events-none absolute inset-0 h-full w-full">
+        {edges.map((edge) => {
+          const fromNode = nodes.find((node) => node.id === edge.from);
+          const toNode = nodes.find((node) => node.id === edge.to);
           if (!fromNode || !toNode) return null;
-          
+
           return (
-            <path 
-              key={i}
+            <path
+              key={`${edge.from}-${edge.to}`}
               d={drawEdge(fromNode, toNode)}
               fill="none"
-              stroke={toNode.unlocked ? "#3B82F6" : "#374151"}
-              strokeWidth="4"
-              strokeDasharray={toNode.unlocked ? "none" : "8,8"}
+              stroke={toNode.unlocked ? "rgba(255,75,140,0.8)" : "rgba(200,200,200,0.8)"}
+              strokeWidth="5"
+              strokeDasharray={toNode.unlocked ? "none" : "10 10"}
             />
           );
         })}
       </svg>
 
-      {nodes.map(node => (
-        <motion.div
+      {nodes.map((node) => (
+        <motion.button
           key={node.id}
-          className={`absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full w-20 h-20 flex flex-col items-center justify-center cursor-pointer
-            ${node.completed ? 'bg-gradient-to-tr from-blue-600 to-purple-600 shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 
-              node.unlocked ? 'bg-gray-800 border-2 border-blue-500 text-white' : 
-              'bg-gray-900 border-2 border-gray-700 text-gray-600'}`}
-          style={{ left: `${node.x}%`, top: `${node.y}%`, zIndex: 10 }}
-          whileHover={node.unlocked ? { scale: 1.1 } : {}}
-          whileTap={node.unlocked ? { scale: 0.95 } : {}}
+          type="button"
+          className={`absolute flex h-24 w-24 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border text-center transition ${
+            node.completed
+              ? "border-[#58cc02] bg-[#edffd6] text-[#3c3c3c] shadow-[0_0_20px_rgba(88,204,2,0.25)]"
+              : node.unlocked
+                ? "border-[#1cb0f6] bg-[#e8f9ff] text-[#3c3c3c] animate-glow-pulse"
+                : "border-[#e5e5e5] bg-white/60 text-[#b0b0b0] backdrop-blur-sm"
+          }`}
+          style={{ left: `${node.x}%`, top: `${node.y}%` }}
+          whileHover={node.unlocked ? { scale: 1.05 } : undefined}
+          whileTap={node.unlocked ? { scale: 0.97 } : undefined}
           onClick={() => node.unlocked && onNodeClick(node)}
         >
           {node.completed ? (
-            <span className="text-2xl text-white font-bold">★</span>
-          ) : !node.unlocked ? (
-            <span className="text-xl">🔒</span>
+            <>
+              <span className="text-2xl">&#10003;</span>
+              <span className="mt-1 text-xs font-bold uppercase tracking-[0.18em]">{node.label}</span>
+            </>
+          ) : node.unlocked ? (
+            <>
+              <span className="text-2xl font-black">GO</span>
+              <span className="mt-1 text-xs font-bold uppercase tracking-[0.18em]">{node.label}</span>
+            </>
           ) : (
-            <span className="text-xl">☆</span>
+            <>
+              <span className="text-xl opacity-40">&#128274;</span>
+              <span className="mt-1 text-xs font-bold uppercase tracking-[0.18em] opacity-50">{node.label}</span>
+            </>
           )}
-          <span className="absolute -bottom-8 whitespace-nowrap font-bold text-sm text-gray-300">
-            {node.label}
-          </span>
-        </motion.div>
+        </motion.button>
       ))}
     </div>
   );
