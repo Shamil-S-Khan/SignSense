@@ -24,7 +24,7 @@ interface UseSignRecognitionSocketReturn {
   latestResult: RecognitionResult | null;
   isPredicting: boolean;
   error: string | null;
-  sendFrame: (frameIndex: number, jpeg: string) => void;
+  sendFrame: (frameIndex: number, jpeg: string, landmarks?: number[]) => void;
   requestPrediction: () => void;
   clearRemoteBuffer: () => void;
   clearPrediction: () => void;
@@ -111,7 +111,7 @@ export function useSignRecognitionSocket(): UseSignRecognitionSocketReturn {
     };
   }, [connect]);
 
-  const sendFrame = useCallback((frameIndex: number, jpeg: string) => {
+  const sendFrame = useCallback((frameIndex: number, jpeg: string, landmarks?: number[]) => {
     if (wsRef.current?.readyState !== WebSocket.OPEN) {
       return;
     }
@@ -121,6 +121,7 @@ export function useSignRecognitionSocket(): UseSignRecognitionSocketReturn {
         type: "frame",
         frame_index: frameIndex,
         jpeg,
+        landmarks,
       }),
     );
   }, []);

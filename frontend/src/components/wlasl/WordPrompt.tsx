@@ -1,6 +1,6 @@
 "use client";
 
-import type { ConnectionStatus, RecognitionResult } from "@/lib/sign-recognition/types";
+import type { ConnectionStatus } from "@/lib/sign-recognition/types";
 
 interface WordPromptProps {
   word: string;

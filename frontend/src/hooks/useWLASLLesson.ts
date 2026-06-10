@@ -41,7 +41,7 @@ export function useWLASLLesson({
   onFailure,
 }: UseWLASLLessonOptions): UseWLASLLessonReturn {
   const { videoRef, isStreaming, error: cameraError, startCapture, stopCapture } = useWebcam();
-  const { connectionStatus, latestResult, isPredicting, sendFrame, requestPrediction, clearRemoteBuffer, clearPrediction } = useSignRecognitionSocket();
+  const { connectionStatus, latestResult, sendFrame, requestPrediction, clearRemoteBuffer, clearPrediction } = useSignRecognitionSocket();
 
   const [phase, setPhase] = useState<WLASLLessonPhase>("idle");
   const [frameCount, setFrameCount] = useState(0);

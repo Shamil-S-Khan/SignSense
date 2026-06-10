@@ -21,8 +21,8 @@ export function RecognitionCamera({
     <section className="relative overflow-hidden rounded-[2rem] border border-zinc-800 bg-black shadow-[0_30px_100px_rgba(0,0,0,0.45)]">
       <video
         ref={videoRef}
-        className="aspect-[4/3] w-full object-cover"
-        style={{ transform: "scaleX(-1)" }}
+        className="aspect-[4/3] w-full"
+        style={{ transform: "scaleX(-1)", objectFit: "cover" }}
         muted
         playsInline
       />

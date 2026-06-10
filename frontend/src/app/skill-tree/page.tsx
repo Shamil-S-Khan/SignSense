@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -8,6 +8,8 @@ import { LESSONS } from "@/lib/practice/lesson-data";
 import { isLessonUnlocked, useLocalPracticeStore } from "@/lib/practice/progress";
 import { WLASL_LESSONS, isWLASLLessonUnlocked } from "@/lib/wlasl/lesson-data";
 import { useWLASLProgressStore } from "@/lib/wlasl/progress";
+import { ASL_CITIZEN_LESSONS, isASLCitizenLessonUnlocked } from "@/lib/asl-citizen/lesson-data";
+import { useASLCitizenProgressStore } from "@/lib/asl-citizen/progress";
 import { useDevSettingsStore } from "@/lib/dev-settings";
 
 const NODE_POSITIONS = [
@@ -36,6 +38,9 @@ export default function SkillTreePage() {
 
   const wlaslCompleted = useWLASLProgressStore((state) => state.completedLessons);
   const wlaslXp = useWLASLProgressStore((state) => state.xp);
+
+  const aslCitizenCompleted = useASLCitizenProgressStore((state) => state.completedLessons);
+  const aslCitizenXp = useASLCitizenProgressStore((state) => state.xp);
 
   const devUnlockAll = useDevSettingsStore((s) => s.devUnlockAll);
   const toggleDevUnlockAll = useDevSettingsStore((s) => s.toggleDevUnlockAll);
@@ -68,14 +73,14 @@ export default function SkillTreePage() {
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
   const edges = LESSONS.slice(1).map((lesson) => ({ from: lesson.unlockAfter ?? LESSONS[0].id, to: lesson.id }));
 
-  const totalXp = xp + wlaslXp;
+  const totalXp = xp + wlaslXp + aslCitizenXp;
   const alphabetProgress = Math.round((completedLetters.length / 26) * 100);
 
   return (
     <main className="min-h-screen bg-[#b985e8] px-4 py-5 text-[#3c3c3c] md:px-8">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-5">
 
-        {/* â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── Header ────────────────────────────────────────────────── */}
         <header className="relative overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white p-6 shadow-md">
 
           <div className="relative flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -96,7 +101,7 @@ export default function SkillTreePage() {
                 Your <span className="text-gradient-pink">Progress</span>
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-6 text-[#777777]">
-                Work through the alphabet and unlock WLASL video lessons. Guided prompts help with letters that need motion-aware recognition.
+                Work through the alphabet, practice the WLASL dataset, or test the new landmark-driven ASL Citizen model lessons.
               </p>
 
               {/* Alphabet progress bar */}
@@ -123,6 +128,7 @@ export default function SkillTreePage() {
               <XpOrb value={totalXp} label="Total XP" />
               <ProgressOrb value={completedLessons.length} max={LESSONS.length} label="Lessons" color="emerald" />
               <ProgressOrb value={wlaslCompleted.length} max={WLASL_LESSONS.length} label="WLASL" color="violet" />
+              <ProgressOrb value={aslCitizenCompleted.length} max={ASL_CITIZEN_LESSONS.length} label="ASL Citizen" color="indigo" />
 
               {/* Dev toggle */}
               <button
@@ -169,7 +175,7 @@ export default function SkillTreePage() {
         <SkillTreeCanvas nodes={nodes} edges={edges} onNodeClick={(node) => setSelectedNodeId(node.id)} />
         <SkillNodePanel node={selectedNode} isOpen={selectedNode !== null} onClose={() => setSelectedNodeId(null)} />
 
-        {/* â”€â”€ WLASL Words Track â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── WLASL Words Track ────────────────────────────────────── */}
         <section className="rounded-3xl border border-[#e5e5e5] bg-white p-6 shadow-md">
           <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
@@ -246,7 +252,7 @@ export default function SkillTreePage() {
                                 : "bg-[#f5f5f5] text-[#b0b0b0]"
                             }`}
                           >
-                            {completed ? "&#x2713; Done" : unlocked ? "Ready" : "&#x1f512; Locked"}
+                            {completed ? "✓ Done" : unlocked ? "Ready" : "🔒 Locked"}
                           </span>
                         </div>
 
@@ -307,6 +313,145 @@ export default function SkillTreePage() {
             );
           })}
         </section>
+
+        {/* ── ASL Citizen Track ────────────────────────────────────── */}
+        <section className="rounded-3xl border border-[#e5e5e5] bg-white p-6 shadow-md mb-8">
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#1cb0f6]">
+                Dual-Stream · Landmark-guided recognition
+              </p>
+              <h2 className="font-display mt-1 text-2xl font-extrabold text-[#3c3c3c]">ASL Citizen Top-100 Lessons</h2>
+              <p className="mt-2 max-w-lg text-sm leading-6 text-[#777777]">
+                Practice 100 key ASL signs using the dual-stream model. Real-time client-side skeleton tracking overlays your video feed.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <XpOrb value={aslCitizenXp} label="Citizen XP" />
+              <ProgressOrb value={aslCitizenCompleted.length} max={ASL_CITIZEN_LESSONS.length} label="Done" color="indigo" />
+            </div>
+          </div>
+
+          {(["Beginner", "Intermediate", "Advanced", "Expert"] as const).map((cat) => {
+            const catLessons = ASL_CITIZEN_LESSONS.filter((l) => l.category === cat);
+            const meta = CATEGORY_META[cat]!;
+            return (
+              <div key={cat} className="mb-8 last:mb-0">
+                <div className="mb-3 flex items-center gap-3">
+                  <span className={`rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.22em] ${meta.badge}`}>
+                    {cat}
+                  </span>
+                  <div className="h-px flex-1 bg-[#e5e5e5]" />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {catLessons.map((lesson) => {
+                    const unlocked = devUnlockAll || isASLCitizenLessonUnlocked(aslCitizenCompleted, lesson.unlockAfter);
+                    const completed = aslCitizenCompleted.includes(lesson.id);
+
+                    const cardBorder = completed
+                      ? "border-[#58cc02]/30"
+                      : unlocked
+                        ? `${meta.border}`
+                        : "border-[#e5e5e5]";
+                    const cardBg = completed
+                      ? "bg-[#edffd6]/50"
+                      : unlocked
+                        ? `${meta.bg}`
+                        : "bg-[#fafafa]";
+
+                    return (
+                      <div
+                        key={lesson.id}
+                        className={`group relative overflow-hidden rounded-2xl border p-5 transition-all duration-200 ${cardBorder} ${cardBg} ${
+                          unlocked && !completed ? "hover:-translate-y-0.5 hover:shadow-lg" : ""
+                        } ${!unlocked ? "opacity-50" : ""}`}
+                      >
+                        {/* Left accent bar */}
+                        <div
+                          className="absolute inset-y-0 left-0 w-0.5 rounded-full"
+                          style={{
+                            background: completed
+                              ? "linear-gradient(to bottom, #34d399, #10b981)"
+                              : unlocked
+                                ? `linear-gradient(to bottom, var(--${meta.color}), transparent)`
+                                : "transparent",
+                          }}
+                        />
+
+                        <div className="mb-3 flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#b0b0b0]">
+                            {lesson.id.replace("asl-citizen-", "Lesson ")}
+                          </span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                              completed
+                                ? "bg-[#edffd6] text-[#45a301]"
+                                : unlocked
+                                  ? `${meta.badge}`
+                                  : "bg-[#f5f5f5] text-[#b0b0b0]"
+                            }`}
+                          >
+                            {completed ? "✓ Done" : unlocked ? "Ready" : "🔒 Locked"}
+                          </span>
+                        </div>
+
+                        <p className="font-display mb-3 font-bold text-[#3c3c3c]">{lesson.title}</p>
+
+                        {/* Word badges */}
+                        <div className="mb-4 flex flex-wrap gap-1.5">
+                          {lesson.words.map((w) => (
+                            <span
+                              key={w}
+                              className="rounded-lg border border-[#e5e5e5] bg-[#f5f5f5] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#777777]"
+                            >
+                              {w}
+                            </span>
+                          ))}
+                        </div>
+
+                        {unlocked && (
+                          <div className="flex gap-2">
+                            <Link
+                              href={`/asl-citizen/${lesson.id}`}
+                              className={`inline-flex h-9 flex-1 items-center justify-center rounded-xl text-[11px] font-black uppercase tracking-[0.14em] transition ${
+                                completed
+                                  ? "bg-[#edffd6] text-[#45a301] hover:bg-[#d4ffac]"
+                                  : "text-white hover:opacity-90"
+                              }`}
+                              style={
+                                !completed
+                                  ? {
+                                      background: "#1cb0f6",
+                                      boxShadow: "0 3px 0 #0a9de0",
+                                      borderRadius: "9999px",
+                                    }
+                                  : {}
+                              }
+                            >
+                              {completed ? "Redo" : "Start Lesson"}
+                            </Link>
+                            <Link
+                              href={`/asl-citizen/${lesson.id}?mode=practice`}
+                              className="inline-flex h-9 items-center justify-center rounded-xl border border-[#e5e5e5] bg-[#f5f5f5] px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-[#777777] transition hover:bg-[#eeeeee]"
+                            >
+                              Practice
+                            </Link>
+                          </div>
+                        )}
+
+                        {!unlocked && (
+                          <div className="flex h-9 w-full items-center justify-center rounded-xl bg-[#f5f5f5] text-[11px] font-bold uppercase tracking-[0.16em] text-[#b0b0b0]">
+                            Complete previous lesson
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </section>
       </div>
     </main>
   );
@@ -321,10 +466,11 @@ function XpOrb({ value, label }: { value: number; label: string }) {
   );
 }
 
-function ProgressOrb({ value, max, label, color }: { value: number; max: number; label: string; color: "emerald" | "violet" }) {
+function ProgressOrb({ value, max, label, color }: { value: number; max: number; label: string; color: "emerald" | "violet" | "indigo" }) {
   const colorMap = {
     emerald: "border-[#58cc02]/30 bg-[#edffd6] text-[#45a301]",
     violet:  "border-[#ce82ff]/30 bg-[#f5e8ff] text-[#a855f7]",
+    indigo:  "border-[#3b82f6]/30 bg-[#eff6ff] text-[#1d4ed8]",
   };
   return (
     <div className={`rounded-2xl border px-4 py-2.5 text-center shadow-sm ${colorMap[color]}`}>

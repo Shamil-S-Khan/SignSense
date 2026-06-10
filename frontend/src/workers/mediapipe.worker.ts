@@ -274,6 +274,7 @@ self.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
   if (age > MAX_FRAME_AGE_MS) {
     droppedFrames += 1;
     message.frame.close();
+    postMessageToMain({ type: "DROPPED", timestamp: message.timestamp });
     return;
   }
 

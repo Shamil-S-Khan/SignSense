@@ -23,7 +23,7 @@ logger = logging.getLogger("sign_recognition.websocket")
 
 router = APIRouter(tags=["sign-recognition"])
 
-_buffers: Dict[WebSocket, List[bytes]] = {}
+_buffers: Dict[WebSocket, List[tuple[bytes, list[float] | None]]] = {}
 
 
 @router.websocket("/ws/sign-recognition")
@@ -42,7 +42,7 @@ async def sign_recognition_ws(websocket: WebSocket) -> None:
                 buffer = _buffers[websocket]
                 if len(buffer) >= settings.SIGN_RECOGNITION_MAX_BUFFER_FRAMES:
                     buffer.pop(0)
-                buffer.append(base64.b64decode(message.jpeg))
+                buffer.append((base64.b64decode(message.jpeg), message.landmarks))
                 continue
 
             if message_type == "clear":
@@ -52,7 +52,14 @@ async def sign_recognition_ws(websocket: WebSocket) -> None:
 
             if message_type == "predict":
                 PredictMessage.model_validate(payload)
-                frames = list(_buffers[websocket])
+                buffered_items = list(_buffers[websocket])
+                frames = [item[0] for item in buffered_items]
+                landmarks = [item[1] for item in buffered_items]
+                
+                # If all are None, pass None to pipeline
+                if all(lm is None for lm in landmarks):
+                    landmarks = None
+
                 logger.info("predict received: %d frames buffered", len(frames))
                 if len(frames) < settings.SIGN_RECOGNITION_MIN_FRAMES:
                     await websocket.send_json(
@@ -66,7 +73,7 @@ async def sign_recognition_ws(websocket: WebSocket) -> None:
 
                 loop = asyncio.get_running_loop()
                 try:
-                    result = await loop.run_in_executor(None, sign_recognition_pipeline.predict, frames)
+                    result = await loop.run_in_executor(None, sign_recognition_pipeline.predict, frames, landmarks)
                 except Exception as exc:
                     logger.exception("Sign recognition prediction failed")
                     await websocket.send_json(ErrorResponse(message=str(exc)).model_dump())

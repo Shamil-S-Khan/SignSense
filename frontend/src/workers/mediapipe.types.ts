@@ -9,7 +9,8 @@ export type WorkerOutMessage =
   | { type: "VAD_STATE"; state: VADState; velocity: number; timestamp: number }
   | { type: "SIGN_SEGMENT"; frames: Float32Array; frameCount: number; startedAt: number; endedAt: number }
   | { type: "METRICS"; fps: number; latencyMs: number; droppedFrames: number }
-  | { type: "ERROR"; message: string };
+  | { type: "ERROR"; message: string }
+  | { type: "DROPPED"; timestamp: number };
 
 export type VADState = "IDLE" | "SIGNING" | "COOLDOWN";
 

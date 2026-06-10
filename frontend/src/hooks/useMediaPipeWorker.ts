@@ -28,6 +28,7 @@ export function useMediaPipeWorker(): UseMediaPipeWorkerReturn {
   const rawHandsRef = useRef<HandLandmark[][]>([]);
   const onLandmarks = useRef<((landmarks: NormalizedLandmarks) => void) | null>(null);
   const onSignSegment = useRef<((frames: Float32Array) => void) | null>(null);
+  const workerBusyRef = useRef(false);
 
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,9 +48,15 @@ export function useMediaPipeWorker(): UseMediaPipeWorkerReturn {
       }
 
       if (message.type === "LANDMARKS") {
+        workerBusyRef.current = false;
         landmarksRef.current = message.landmarks;
         rawHandsRef.current = message.rawHands;
         onLandmarks.current?.(message.landmarks);
+        return;
+      }
+
+      if (message.type === "DROPPED") {
+        workerBusyRef.current = false;
         return;
       }
 
@@ -75,6 +82,7 @@ export function useMediaPipeWorker(): UseMediaPipeWorkerReturn {
       }
 
       if (message.type === "ERROR") {
+        workerBusyRef.current = false;
         setError(message.message);
       }
     };
@@ -94,6 +102,12 @@ export function useMediaPipeWorker(): UseMediaPipeWorkerReturn {
       return;
     }
 
+    if (workerBusyRef.current) {
+      frame.close();
+      return;
+    }
+
+    workerBusyRef.current = true;
     worker.postMessage({ type: "FRAME", frame, timestamp }, [frame]);
   }, []);
 

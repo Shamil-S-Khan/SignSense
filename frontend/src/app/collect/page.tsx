@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -114,7 +114,7 @@ export default function CollectPage() {
     }
   };
 
-  const isConnectedToBackend = phase !== "error" && errorMsg === null;
+
 
   return (
     <main className="min-h-screen bg-[#0b0f13] px-4 py-8 text-zinc-100">

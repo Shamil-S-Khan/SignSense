@@ -41,14 +41,14 @@ class Settings(BaseSettings):
     SIGN_RECOGNITION_MODEL_WEIGHTS_PATH: str = os.path.join(
         BASE_DIR,
         "model_weights",
-        "vanilla_weigths",
-        "best_model_40_73.pth",
+        "ASL_Citizen_Weights",
+        "best_top100_fixed.pt",
     )
     SIGN_RECOGNITION_LABELS_PATH: str = os.path.join(
         BASE_DIR,
         "backend",
         "models",
-        "wlasl_class_list.txt",
+        "asl_citizen_class_list.txt",
     )
 
     VAPID_PUBLIC_KEY: str = ""

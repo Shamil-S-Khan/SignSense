@@ -9,6 +9,7 @@ class FrameMessage(BaseModel):
     type: Literal["frame"]
     frame_index: int = Field(ge=0)
     jpeg: str  # base64-encoded JPEG frame
+    landmarks: list[float] | None = None
 
 
 class PredictMessage(BaseModel):

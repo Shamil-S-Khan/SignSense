@@ -37,6 +37,7 @@ export function WebcamFeed({
   const {
     isReady,
     error: workerError,
+    landmarksRef,
     rawHandsRef,
     vadState,
     metrics,
@@ -118,13 +119,13 @@ export function WebcamFeed({
       )}
       <video
         ref={videoRef}
-        className="absolute inset-0 h-full w-full object-cover"
-        style={{ transform: "scaleX(-1)" }}
+        className="absolute inset-0 h-full w-full"
+        style={{ transform: "scaleX(-1)", objectFit: "cover" }}
         muted
         playsInline
       />
 
-      <SkeletonOverlay rawHandsRef={rawHandsRef} width={640} height={480} />
+      <SkeletonOverlay rawHandsRef={rawHandsRef} landmarksRef={landmarksRef} videoRef={videoRef} />
 
       {overlayMessage ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 px-6">
