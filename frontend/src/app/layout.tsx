@@ -1,22 +1,25 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
-import { Syne } from "next/font/google";
+import { Orbitron, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
-const syne = Syne({
+const orbitron = Orbitron({
   subsets: ["latin"],
-  variable: "--font-syne",
-  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-display",
+  weight: ["600", "700", "800", "900"],
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-body",
+  weight: ["400", "500", "600"],
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  weight: ["400", "500", "700"],
   display: "swap",
 });
 
@@ -33,19 +36,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${syne.variable} antialiased`}
+        className={`${orbitron.variable} ${inter.variable} ${jetbrainsMono.variable} antialiased`}
       >
         <Toaster
           position="bottom-right"
           toastOptions={{
             style: {
-              background: "#ffffff",
-              border: "1px solid #e5e5e5",
-              color: "#3c3c3c",
-              borderRadius: "16px",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+              background: "#1a1d27",
+              border: "1px solid #22263a",
+              color: "#f0f2f8",
+              borderRadius: "12px",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
             },
           }}
         />
@@ -54,3 +57,4 @@ export default function RootLayout({
     </html>
   );
 }
+

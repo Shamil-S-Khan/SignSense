@@ -1,6 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
+import React, { useEffect, useRef } from "react";
+import { motion, useAnimation } from "framer-motion";
+import { audioManager } from "@/lib/audioManager";
 
 interface Props {
   handshapeScore: number;
@@ -11,54 +13,70 @@ interface Props {
 const BAR_ICONS: Record<string, string> = {
   Handshape: "✋",
   Movement: "👈",
-  Orientation: "🦭",
+  Orientation: "🧭",
 };
 
-function getBarColor(score: number) {
-  if (score >= 90) return "from-emerald-500 to-teal-400";
-  if (score >= 70) return "from-amber-500 to-yellow-400";
-  return "from-rose-600 to-pink-500";
-}
-
 function ScoreBar({ label, score }: { label: string; score: number }) {
-  const isEmpty = score === 0;
-  const color = getBarColor(score);
+  const prevScoreRef = useRef(score);
+  const controls = useAnimation();
+
   const pct = Math.min(100, Math.max(0, score));
+
+  // Trigger flash and tick sound on hitting 100%
+  useEffect(() => {
+    if (pct >= 100 && prevScoreRef.current < 100) {
+      audioManager.playTick();
+      // Row flash animation
+      controls.start({
+        backgroundColor: ["rgba(34, 197, 94, 0.4)", "rgba(255, 255, 255, 0.8)", "rgba(15, 22, 35, 0)"],
+        transition: { duration: 0.5, ease: "easeOut" }
+      });
+    }
+    prevScoreRef.current = pct;
+  }, [pct, controls]);
+
   return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#777777]">
-          <span>{BAR_ICONS[label]}</span>
+    <motion.div
+      animate={controls}
+      className="p-2.5 rounded-xl border border-transparent transition-all duration-300 relative overflow-hidden"
+    >
+      <div className="mb-2 flex items-center justify-between z-10 relative">
+        <span className="flex items-center gap-2 text-[10px] font-display font-black uppercase tracking-widest text-[#64748B]">
+          <span className="text-xs">{BAR_ICONS[label]}</span>
           {label}
         </span>
         <span
-          className={`text-xs font-black tabular-nums ${
-            isEmpty ? "text-[#b0b0b0]" : pct >= 90 ? "text-emerald-400" : pct >= 70 ? "text-amber-400" : "text-rose-400"
+          className={`text-xs font-mono font-bold ${
+            pct === 0 ? "text-[#64748B]" : pct >= 95 ? "text-[#22C55E]" : pct >= 70 ? "text-[#F59E0B]" : "text-[#EF4444]"
           }`}
         >
-          {isEmpty ? "\u2013" : `${Math.round(pct)}%`}
+          {pct === 0 ? "—" : `${Math.round(pct)}%`}
         </span>
       </div>
-      <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-[#f0f0f0]">
+
+      {/* Bar rail */}
+      <div className="relative h-4 w-full overflow-hidden rounded-full bg-[#080C14] border border-[#141E2E] p-0.5 shadow-inner">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
-          transition={{ type: "spring", stiffness: 120, damping: 22 }}
-          className={`absolute inset-y-0 left-0 rounded-full bg-gradient-to-r ${isEmpty ? "bg-[#e5e5e5]" : color}`}
-          style={{}}
+          transition={{ type: "spring", stiffness: 100, damping: 20 }}
+          className="h-full rounded-full bg-gradient-to-r from-[#EF4444] via-[#F59E0B] to-[#22C55E]"
+          style={{
+            boxShadow: pct > 0 ? "0 0 10px rgba(34, 197, 94, 0.2)" : "none",
+          }}
         />
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 export function ScoreBars({ handshapeScore, movementScore, orientationScore }: Props) {
   return (
-    <section className="rounded-3xl border border-[#e5e5e5] bg-white p-5 shadow-md">
-      <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.22em] text-[#b0b0b0]">
-        Execution analysis
+    <section className="rounded-2xl border border-[#141E2E] bg-[#0F1623] p-4 shadow-xl">
+      <p className="mb-3 text-[9px] font-display font-black uppercase tracking-widest text-[#64748B]">
+        Execution Analysis
       </p>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
         <ScoreBar label="Handshape" score={handshapeScore} />
         <ScoreBar label="Movement" score={movementScore} />
         <ScoreBar label="Orientation" score={orientationScore} />

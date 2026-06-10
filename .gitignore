@@ -43,3 +43,7 @@ finetune/data/
 backend_error.txt
 
 celerybeat-schedule
+
+# Databases
+*.db
+backend/*.db

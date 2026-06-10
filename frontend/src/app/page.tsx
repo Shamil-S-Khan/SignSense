@@ -1,25 +1,165 @@
-﻿"use client";
+"use client";
 
-import Link from "next/link";
 import { useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { BookOpen, Layers, X } from "lucide-react";
+import toast from "react-hot-toast";
+
+import { ProgressHeader } from "@/components/polished/ProgressHeader";
+import { WordLearningCard, type WordData } from "@/components/polished/WordLearningCard";
+import { SentenceBuilder } from "@/components/polished/SentenceBuilder";
+import { LetterDrill } from "@/components/polished/LetterDrill";
+import { SkillTree } from "@/components/polished/SkillTree";
+
 import { SignReference } from "@/components/lesson/SignReference";
 import { ScoreBars } from "@/components/lesson/ScoreBars";
 import { WebcamFeed } from "@/components/webcam/WebcamFeed";
 import { smoothDetections, shouldAllowSuccess, type DetectionSample, type ScoreBreakdown } from "@/lib/practice/feedback";
-import { ALL_REFERENCE_LETTERS, LESSONS, isGuidedOnlyLetter } from "@/lib/practice/lesson-data";
+import { ALL_REFERENCE_LETTERS, isGuidedOnlyLetter } from "@/lib/practice/lesson-data";
 import { useLocalPracticeStore } from "@/lib/practice/progress";
 import type { VADState, WorkerMetrics } from "@/workers/mediapipe.types";
 
 const INITIAL_SCORES: ScoreBreakdown = { handshape: 0, movement: 0, orientation: 0 };
 const INITIAL_METRICS: WorkerMetrics = { fps: 0, latencyMs: 0, droppedFrames: 0 };
 
-const MARQUEE_LETTERS = "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z".split(" ");
+interface SkillNode {
+  id: string;
+  title: string;
+  type: "letters" | "sentences";
+  items: string[];
+  unlockAfter: string | null;
+  description: string;
+}
+
+const _SKILL_TREE_NODES: SkillNode[] = [
+  {
+    id: "node-abc",
+    title: "Alphabet Basics",
+    type: "letters",
+    items: ["A", "B", "C"],
+    unlockAfter: null,
+    description: "Learn the core hand silhouettes for fingerspelling letters A, B, and C."
+  },
+  {
+    id: "node-def",
+    title: "Fingerspelling Prep",
+    type: "letters",
+    items: ["D", "E", "F"],
+    unlockAfter: "node-abc",
+    description: "Expand your manual spelling vocabulary with D, E, and F shape poses."
+  },
+  {
+    id: "node-sent1",
+    title: "Sentences: Topic-Comment",
+    type: "sentences",
+    items: ["BOOK WANT", "SCHOOL GO"],
+    unlockAfter: "node-def",
+    description: "Construct fundamental ASL sentences following topic-comment grammar order."
+  },
+  {
+    id: "node-ghi",
+    title: "Advanced Handshapes",
+    type: "letters",
+    items: ["G", "H", "I"],
+    unlockAfter: "node-sent1",
+    description: "Master horizontal gestures and smallest finger poses for G, H, and I."
+  },
+  {
+    id: "node-sent2",
+    title: "Sentences: Question Forms",
+    type: "sentences",
+    items: ["WHAT TIME", "WHO PLAY"],
+    unlockAfter: "node-ghi",
+    description: "Analyze and practice visual grammar for simple query sentences."
+  },
+  {
+    id: "node-jkl",
+    title: "Fingerspelling Mastery",
+    type: "letters",
+    items: ["J", "K", "L"],
+    unlockAfter: "node-sent2",
+    description: "Learn dynamic wrist rotations and finger junctions for J, K, and L."
+  },
+  {
+    id: "node-sent3",
+    title: "Sentences: Subject-Verb-Object",
+    type: "sentences",
+    items: ["DOG LIKE PLAY", "FAMILY EAT NOW"],
+    unlockAfter: "node-jkl",
+    description: "Synthesize full sentences using subject-verb-object spatial alignments."
+  }
+];
+
+const MOCK_WORD_CARDS: WordData[] = [
+  {
+    word: "BOOK",
+    phonetic: "bʊk",
+    example: "Open and close both palms flat, like opening a book. Used in sentences like: BOOK WANT.",
+    status: "mastered",
+    videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-writing-in-a-book-with-a-pen-43093-large.mp4"
+  },
+  {
+    word: "DRINK",
+    phonetic: "drɪŋk",
+    example: "Form a C-hand and move it to your mouth as if drinking. Used in: DRINK NOW.",
+    status: "learning",
+    videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-hand-holding-a-glass-of-water-43085-large.mp4"
+  },
+  {
+    word: "COMPUTER",
+    phonetic: "kəmˈpjuːtər",
+    example: "Brush the dominant C-hand along the non-dominant forearm. Used in: COMPUTER WORK.",
+    status: "unseen",
+    videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-typing-on-a-computer-keyboard-43091-large.mp4"
+  },
+  {
+    word: "GO",
+    phonetic: "ɡoʊ",
+    example: "Point both index fingers and arc them forward together. Used in: SCHOOL GO.",
+    status: "mastered",
+    videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-hand-pointing-forward-43087-large.mp4"
+  },
+  {
+    word: "PLAY",
+    phonetic: "pleɪ",
+    example: "Shake Y-hands loosely at the sides. Used in: WHO PLAY or DOG LIKE PLAY.",
+    status: "learning",
+    videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-kids-hands-playing-with-blocks-43089-large.mp4"
+  },
+  {
+    word: "SCHOOL",
+    phonetic: "skuːl",
+    example: "Clap hands twice with a slight offset. Used in: SCHOOL GO.",
+    status: "unseen",
+    videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-writing-on-a-notebook-43095-large.mp4"
+  }
+];
 
 export default function Home() {
-  const [targetIndex, setTargetIndex] = useState(0);
+  // Navigation Tabs: 'tree' | 'practice'
+  const [activeTab, setActiveTab] = useState<"tree" | "practice">("tree");
+
+  // Free Practice Selector Sub-tabs: 'letters' | 'words'
+  const [practiceSubTab, setPracticeSubTab] = useState<"letters" | "words">("letters");
+
+  // Zustand Store variables
+
+  const _completedLessons = useLocalPracticeStore((state) => state.completedLessons);
+  const awardLetterSuccess = useLocalPracticeStore((state) => state.awardLetterSuccess);
+  const markLessonComplete = useLocalPracticeStore((state) => state.markLessonComplete);
+  const _xp = useLocalPracticeStore((state) => state.xp);
+  const _streak = useLocalPracticeStore((state) => state.streak);
+  const _heartsRemaining = useLocalPracticeStore((state) => state.heartsRemaining);
+  const _loseHeart = useLocalPracticeStore((state) => state.loseHeart);
+
+  // Active fingerspelling target in Free Practice
+  const [targetLetter, setTargetLetter] = useState("A");
+  const isGuided = isGuidedOnlyLetter(targetLetter);
+
+  // Feedback and overlay tracking
   const [scores, setScores] = useState<ScoreBreakdown>(INITIAL_SCORES);
   const [lastDetection, setLastDetection] = useState<{ sign: string; confidence: number } | null>(null);
-  const [feedback, setFeedback] = useState("Start the camera and match the target handshape. Guided letters use the reference card only.");
+  const [feedback, setFeedback] = useState("Start the camera and match the target handshape.");
   const [overlayMessage, setOverlayMessage] = useState<string | null>(null);
   const [overlayTone, setOverlayTone] = useState<"success" | "guided" | "neutral">("neutral");
   const [vadState, setVadState] = useState<VADState>("IDLE");
@@ -31,43 +171,15 @@ export default function Home() {
   const detectionHistoryRef = useRef<DetectionSample[]>([]);
   const lastSuccessAtRef = useRef<number | null>(null);
 
-  const xp = useLocalPracticeStore((state) => state.xp);
-  const streak = useLocalPracticeStore((state) => state.streak);
-  const completedLetters = useLocalPracticeStore((state) => state.completedLetters);
-  const recentSessionStats = useLocalPracticeStore((state) => state.recentSessionStats);
-  const awardLetterSuccess = useLocalPracticeStore((state) => state.awardLetterSuccess);
+  // Modal active lesson from Skill Tree
+  const [activeLessonNode, setActiveLessonNode] = useState<SkillNode | null>(null);
+  const [activeLessonIndex, setActiveLessonIndex] = useState(0);
+  const [lessonFeedback, setLessonFeedback] = useState("Perform the target signs to advance.");
 
-  const target = ALL_REFERENCE_LETTERS[targetIndex] ?? "A";
-  const isGuided = isGuidedOnlyLetter(target);
-  const completedCount = completedLetters.length;
-  const nextLesson = LESSONS.find((lesson) => !lesson.letters.every((letter) => completedLetters.includes(letter))) ?? LESSONS[0];
+  // Word learning card selected item simulation
+  const [selectedWordIndex, setSelectedWordIndex] = useState<number | null>(null);
 
-  const cycleToNextTarget = () => {
-    setTargetIndex((current) => (current + 1) % ALL_REFERENCE_LETTERS.length);
-    setScores(INITIAL_SCORES);
-    setLastDetection(null);
-    detectionHistoryRef.current = [];
-    setTimeout(() => {
-      const nextTarget = ALL_REFERENCE_LETTERS[(targetIndex + 1) % ALL_REFERENCE_LETTERS.length] ?? "A";
-      setFeedback(`Next target: ${nextTarget}. Hold steady for a stable read.`);
-    }, 0);
-  };
-
-  const triggerSuccess = (matchedLetter: string, accuracy: number) => {
-    lastSuccessAtRef.current = performance.now();
-    awardLetterSuccess({ letter: matchedLetter, accuracy });
-    setXpBurst(10);
-    setIsCorrectFlash(true);
-    setOverlayTone("success");
-    setOverlayMessage("Correct");
-    setFeedback(`Clean match for ${matchedLetter}. +10 XP`);
-
-    window.setTimeout(() => setXpBurst(null), 900);
-    window.setTimeout(() => setOverlayMessage(null), 800);
-    window.setTimeout(() => setIsCorrectFlash(false), 950);
-    window.setTimeout(() => cycleToNextTarget(), 1050);
-  };
-
+  // Target letter practice logic
   const handleDetection = (sign: string, confidence: number, detailScores: ScoreBreakdown) => {
     setLastDetection({ sign, confidence });
     setScores(detailScores);
@@ -76,339 +188,435 @@ export default function Home() {
     const smoothed = smoothDetections(detectionHistoryRef.current);
     if (!smoothed) {
       if (confidence >= 0.35) {
-        setFeedback(`Detected ${sign}. Hold the pose a little steadier if you're aiming for ${target}.`);
+        const msg = `Detected ${sign}. Hold steady for ${activeLessonNode ? activeLessonNode.items[activeLessonIndex] : targetLetter}.`;
+        if (activeLessonNode) setLessonFeedback(msg);
+        else setFeedback(msg);
       }
       return;
     }
 
-    if (smoothed.sign !== target) {
-      setFeedback(`Stable read is ${smoothed.sign}. Adjust toward ${target}.`);
+    const currentTarget = activeLessonNode ? activeLessonNode.items[activeLessonIndex] : targetLetter;
+
+    if (smoothed.sign !== currentTarget) {
+      const msg = `Stable read is ${smoothed.sign}. Adjust toward ${currentTarget}.`;
+      if (activeLessonNode) setLessonFeedback(msg);
+      else setFeedback(msg);
       return;
     }
 
     const averageAccuracy = Math.round((smoothed.scores.handshape + smoothed.scores.movement + smoothed.scores.orientation) / 3);
     if (smoothed.confidence >= 0.45 && shouldAllowSuccess(lastSuccessAtRef.current, performance.now())) {
-      triggerSuccess(target, averageAccuracy);
+      triggerSuccess(currentTarget, averageAccuracy);
     }
+  };
+
+  const triggerSuccess = (matchedSign: string, accuracy: number) => {
+    lastSuccessAtRef.current = performance.now();
+    awardLetterSuccess({ letter: matchedSign, accuracy });
+    setXpBurst(10);
+    setIsCorrectFlash(true);
+    setOverlayTone("success");
+    setOverlayMessage("Correct");
+
+    const successMsg = `Clean match for ${matchedSign}. +10 XP`;
+    if (activeLessonNode) setLessonFeedback(successMsg);
+    else setFeedback(successMsg);
+
+    window.setTimeout(() => setXpBurst(null), 900);
+    window.setTimeout(() => setOverlayMessage(null), 800);
+    window.setTimeout(() => setIsCorrectFlash(false), 950);
+
+    window.setTimeout(() => {
+      if (activeLessonNode) {
+        // Advance in active letter lesson
+        if (activeLessonIndex < activeLessonNode.items.length - 1) {
+          setActiveLessonIndex((prev) => prev + 1);
+          setScores(INITIAL_SCORES);
+          setLastDetection(null);
+          detectionHistoryRef.current = [];
+          setLessonFeedback(`Match target: ${activeLessonNode.items[activeLessonIndex + 1]}`);
+        } else {
+          // Finished lesson!
+          markLessonComplete(activeLessonNode.id);
+          toast.success(`Lesson complete! ${activeLessonNode.title} mastered. +25 XP bonus!`);
+          // Boost extra XP
+          awardLetterSuccess({ letter: matchedSign, xpDelta: 25, accuracy });
+          setActiveLessonNode(null);
+        }
+      } else {
+        // Free Practice: cycle target letter
+        const currentIdx = ALL_REFERENCE_LETTERS.indexOf(matchedSign as typeof ALL_REFERENCE_LETTERS[number]);
+        const nextLetter = ALL_REFERENCE_LETTERS[(currentIdx + 1) % ALL_REFERENCE_LETTERS.length];
+        setTargetLetter(nextLetter);
+        setScores(INITIAL_SCORES);
+        setLastDetection(null);
+        detectionHistoryRef.current = [];
+        setFeedback(`Next target: ${nextLetter}. Hold steady.`);
+      }
+    }, 1050);
   };
 
   const handleGuidedPractice = () => {
     setOverlayTone("guided");
     setOverlayMessage("Guided");
-    setFeedback(`Marked ${target} as guided practice. Follow the reference motion, then move on.`);
-    triggerSuccess(target, 88);
+    const currentTarget = activeLessonNode ? activeLessonNode.items[activeLessonIndex] : targetLetter;
+    
+    const msg = `Marked ${currentTarget} as guided. Advanced!`;
+    if (activeLessonNode) setLessonFeedback(msg);
+    else setFeedback(msg);
+    
+    triggerSuccess(currentTarget, 88);
+  };
+
+  // Jump from LetterDrill or card grid straight to Free Practice target letter
+  const handleLoadLetterToPractice = (letter: string) => {
+    setTargetLetter(letter);
+    setScores(INITIAL_SCORES);
+    setLastDetection(null);
+    detectionHistoryRef.current = [];
+    setFeedback(`${letter} loaded. Match the target pose.`);
   };
 
   return (
-    <div className="min-h-screen bg-[#b985e8] text-[#3c3c3c]">
+    <div className="h-screen w-screen bg-[#0f1117] text-[#f0f2f8] flex flex-col overflow-hidden font-body select-none">
+      
+      {/* P0 — Persistent Progress & Stats Header */}
+      <ProgressHeader />
 
-      {/* Sticky Navbar */}
-      <nav className="navbar-glass sticky top-0 z-30 py-2">
-        <div className="page-container flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-lg"
-              style={{ background: "linear-gradient(135deg, #1cb0f6, #0a9de0)" }}
-            >
-              <span className="text-sm font-black text-white">S</span>
-            </div>
-            <span className="font-display text-base font-bold tracking-tight text-white">
-              SignSense
-            </span>
-          </div>
-
-          {/* HUD stats – visible md+ */}
-          <div className="hidden items-center gap-2 md:flex">
-            <HudStat icon="&#x26a1;" label="XP" value={xp} color="cyan" />
-            <HudStat icon="&#x1f525;" label="Streak" value={streak} color="amber" />
-            <HudStat icon="&#x1f3af;" label="Letters" value={`${completedCount}/26`} color="emerald" />
-            <HudStat icon="&#x1f4e1;" label="Segments" value={segmentCount} color="violet" />
-          </div>
-
-          <Link
-            href="/skill-tree"
-            className="inline-flex h-9 items-center gap-1.5 rounded-full border-0 bg-white px-4 text-xs font-bold uppercase tracking-[0.16em] text-[#1cb0f6] transition hover:opacity-90"
+      {/* Tabs Menu Bar */}
+      <section className="bg-[#1a1d27]/40 border-b border-[#22263a] px-6 py-2 flex items-center justify-between shrink-0">
+        <div className="flex gap-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab("tree")}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors relative rounded-md ${
+              activeTab === "tree" ? "text-[#4f8ef7] bg-[#4f8ef7]/5" : "text-[#6b7280] hover:text-[#9ca3af]"
+            }`}
           >
-            Skill Tree &#x2192;
-          </Link>
-        </div>
-      </nav>
-
-      {/* â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <section className="relative overflow-hidden border-b border-white/[0.15] px-4 pb-10 pt-10 md:px-8">
-
-        {/* Marquee letter strip */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-full overflow-hidden opacity-[0.10] select-none">
-          <div className="animate-marquee flex whitespace-nowrap" style={{ width: "200%" }}>
-            {[...MARQUEE_LETTERS, ...MARQUEE_LETTERS].map((l, i) => (
-              <span
-                key={i}
-                className="font-display mr-10 text-[10rem] font-black leading-none text-white"
-              >
-                {l}
-              </span>
-            ))}
-          </div>
+            <Layers className="h-4 w-4" />
+            Progression Tree
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => setActiveTab("practice")}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors relative rounded-md ${
+              activeTab === "practice" ? "text-[#4f8ef7] bg-[#4f8ef7]/5" : "text-[#6b7280] hover:text-[#9ca3af]"
+            }`}
+          >
+            <BookOpen className="h-4 w-4" />
+            Free Practice Playground
+          </button>
         </div>
 
-
-        <div className="page-container relative">
-          <div className="max-w-xl">
-            <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.3em] text-white/70">
-              American Sign Language
-            </p>
-            <h1 className="font-display text-5xl font-extrabold leading-[1.05] text-white md:text-6xl">
-              Learn ASL,{" "}
-              <span style={{ color: "#ffc800" }}>the fun way</span>
-            </h1>
-            <p className="mt-4 max-w-lg text-base leading-7 text-white/75">
-              Practice every letter of the alphabet with your webcam. Earn XP, keep streaks, and unlock structured lessons &#x2014; all locally, no account needed.
-            </p>
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Link
-                href="/skill-tree"
-                className="inline-flex h-12 items-center gap-2 px-6 text-sm font-black uppercase tracking-[0.14em] text-white transition hover:opacity-90"
-                style={{ background: "#1cb0f6", boxShadow: "0 4px 0 #0a9de0", borderRadius: "9999px" }}
-              >
-                Open Skill Tree
-              </Link>
-              <a
-                href="#practice"
-                className="inline-flex h-12 items-center rounded-full border border-white/30 bg-white/25 px-6 text-sm font-bold uppercase tracking-[0.14em] text-white transition hover:bg-white/30"
-              >
-                Free Practice &#x2193;
-              </a>
-            </div>
-          </div>
-
-          {/* Mobile HUD stats */}
-          <div className="mt-6 flex flex-wrap gap-2 md:hidden">
-            <HudStat icon="&#x26a1;" label="XP" value={xp} color="cyan" />
-            <HudStat icon="&#x1f525;" label="Streak" value={streak} color="amber" />
-            <HudStat icon="&#x1f3af;" label="Letters" value={`${completedCount}/26`} color="emerald" />
-            <HudStat icon="&#x1f4e1;" label="Segments" value={segmentCount} color="violet" />
-          </div>
+        {/* Small SVG hand trail decoration */}
+        <div className="h-8 w-20 opacity-20 pointer-events-none hidden md:block">
+          <svg className="h-full w-full stroke-[#4f8ef7] fill-none" viewBox="0 0 100 20">
+            <motion.path
+              d="M 5 15 Q 30 2 55 15 T 95 2"
+              strokeWidth="2"
+              strokeLinecap="round"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 4, ease: "easeInOut", repeat: Infinity, repeatType: "reverse" }}
+            />
+          </svg>
         </div>
       </section>
 
-      {/* â”€â”€ Practice Area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      {/* Practice Area */}
-      <section id="practice" className="page-container py-6">
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[3fr_2fr]">
-          <WebcamFeed
-            disablePose
-            overlayMessage={overlayMessage}
-            overlayTone={overlayTone}
-            onSignDetected={handleDetection}
-            onSignSegment={() => setSegmentCount((count) => count + 1)}
-            onStatusChange={({ vadState: nextVadState, metrics: nextMetrics }) => {
-              setVadState(nextVadState);
-              setMetrics(nextMetrics);
-            }}
-          />
+      {/* Main Container - fits exactly on one page */}
+      <main className="flex-1 overflow-hidden relative">
+        <AnimatePresence mode="wait">
 
-          {/* Sidebar – right 40%, scrollable */}
-          <aside className="flex flex-col gap-4 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:pr-1">
-            {/* Target card */}
-            <section
-              className={`relative overflow-hidden rounded-3xl border p-5 transition-all duration-300 ${
-                isCorrectFlash
-                  ? "ring-2 ring-[#58cc02] bg-[#edffd6]/20 border-[#58cc02]/50"
-                  : "border-[#e5e5e5] bg-white shadow-md"
-              }`}
+          {/* ──────────────── TAB 1: PROGRESSION TREE ──────────────── */}
+          {activeTab === "tree" && (
+            <motion.div
+              key="tree"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="h-full w-full overflow-hidden"
             >
-              {/* XP burst */}
-              {xpBurst !== null && (
-                <div
-                  className="pointer-events-none absolute right-5 top-4 z-10 rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-white"
-                  style={{
-                    background: "#58cc02",
-                    animation: "xp-burst 0.9s ease forwards",
-                  }}
-                >
-                  +{xpBurst} XP
-                </div>
-              )}
+              <SkillTree />
 
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#b0b0b0]">Target letter</p>
-                  <div
-                    className="font-display mt-2 font-black leading-none"
-                    style={{
-                      fontSize: "7rem",
-                      color: "#3c3c3c",
-                      WebkitTextFillColor: "#3c3c3c",
-                      textShadow: isCorrectFlash ? "0 0 30px rgba(52,211,153,0.5)" : "none",
+            </motion.div>
+          )}
+
+          {/* ──────────────── TAB 2: FREE PRACTICE PLAYGROUND ──────────────── */}
+          {activeTab === "practice" && (
+            <motion.div
+              key="practice"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="h-full w-full grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] p-6 gap-6 overflow-hidden"
+            >
+              {/* Left Column: Webcam and scores indicators */}
+              <div className="flex flex-col gap-4 overflow-hidden h-full">
+                
+                {/* 16:9 mirror camera element */}
+                <div className="shrink-0 relative">
+                  <WebcamFeed
+                    disablePose
+                    overlayMessage={overlayMessage}
+                    overlayTone={overlayTone}
+                    onSignDetected={handleDetection}
+                    onSignSegment={() => setSegmentCount((count) => count + 1)}
+                    onStatusChange={({ vadState: nextVadState, metrics: nextMetrics }) => {
+                      setVadState(nextVadState);
+                      setMetrics(nextMetrics);
                     }}
-                  >
-                    {target}
+                  />
+                </div>
+
+                {/* Score indicators */}
+                <div className="shrink-0">
+                  <ScoreBars
+                    handshapeScore={scores.handshape}
+                    movementScore={scores.movement}
+                    orientationScore={scores.orientation}
+                  />
+                </div>
+
+                {/* VAD feedback & performance metrics logs */}
+                <div className="flex-1 bg-[#1a1d27] border border-[#22263a] rounded-xl p-4 flex flex-col justify-between min-h-0 overflow-y-auto">
+                  <div className="space-y-2">
+                    <span className="text-[9px] uppercase font-bold text-[#6b7280] tracking-widest block">Live Feedback</span>
+                    <p className="text-xs text-[#9ca3af] leading-relaxed pr-2">{feedback}</p>
+                    
+                    <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-[#22263a]/40 shrink-0">
+                      <div className="bg-[#0f1117] p-2 rounded-lg border border-[#22263a]">
+                        <span className="text-[9px] uppercase font-bold text-[#6b7280]">Detected</span>
+                        <p className="text-xs font-semibold text-[#f0f2f8] mt-0.5">{lastDetection?.sign ?? "—"}</p>
+                      </div>
+                      <div className="bg-[#0f1117] p-2 rounded-lg border border-[#22263a]">
+                        <span className="text-[9px] uppercase font-bold text-[#6b7280]">Confidence</span>
+                        <p className="text-xs font-semibold text-[#f0f2f8] mt-0.5">
+                          {lastDetection ? `${Math.round(lastDetection.confidence * 100)}%` : "—"}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${
-                        isGuided
-                          ? "bg-[#fff9e0] text-[#ff9600]"
-                          : "bg-[#e8f9ff] text-[#1cb0f6]"
+
+                  <div className="grid grid-cols-3 gap-2 border-t border-[#22263a]/40 pt-3 mt-3">
+                    <div className="text-center">
+                      <div className="text-[9px] font-mono text-[#6b7280] uppercase">FPS</div>
+                      <div className="text-xs font-bold text-[#f0f2f8] font-mono">{metrics.fps || "—"}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[9px] font-mono text-[#6b7280] uppercase">Latency</div>
+                      <div className="text-xs font-bold text-[#f0f2f8] font-mono">{metrics.latencyMs ? `${metrics.latencyMs}ms` : "—"}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[9px] font-mono text-[#6b7280] uppercase">Segments</div>
+                      <div className="text-xs font-bold text-[#f0f2f8] font-mono">{segmentCount}</div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Right Column: Active target details and Compact grids */}
+              <div className="flex flex-col gap-4 overflow-hidden h-full">
+                
+                {/* Active Target Card */}
+                <div className="bg-[#1a1d27] border border-[#22263a] rounded-xl p-4 flex items-center justify-between shrink-0 relative overflow-hidden">
+                  {xpBurst !== null && (
+                    <div className="absolute right-4 top-4 bg-[#3dd68c] text-[#0f1117] text-[10px] font-mono font-bold px-2 py-0.5 rounded-[4px]">
+                      +{xpBurst} XP
+                    </div>
+                  )}
+
+                  <div className="flex items-start gap-4">
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-[#6b7280] tracking-widest block">Active target</span>
+                      <h3 className="font-display text-4xl font-black text-[#f0f2f8] mt-1">{targetLetter}</h3>
+                      
+                      <div className="flex gap-1.5 mt-2">
+                        <span className={`text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          isGuided ? "bg-[#f7a84f]/10 text-[#f7a84f] border border-[#f7a84f]/25" : "bg-[#4f8ef7]/10 text-[#4f8ef7] border border-[#4f8ef7]/25"
+                        }`}>
+                          {isGuided ? "Guided Poses" : "Real-time AI"}
+                        </span>
+                        <span className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#22263a] text-[#9ca3af]">
+                          {vadState}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 w-24">
+                    <SignReference
+                      sign={targetLetter}
+                      isHighlighted={isCorrectFlash}
+                      caption={isGuided ? "Match Pose" : "Align Hand"}
+                    />
+                  </div>
+                </div>
+
+                {/* Toggle tab selectors for Free Practice target components */}
+                <div className="flex-1 bg-[#1a1d27] border border-[#22263a] rounded-xl p-4 flex flex-col overflow-hidden">
+                  <div className="flex border-b border-[#22263a] pb-2 mb-3 shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPracticeSubTab("letters")}
+                      className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded transition-colors ${
+                        practiceSubTab === "letters" ? "bg-[#4f8ef7]/15 text-[#4f8ef7]" : "text-[#6b7280] hover:text-[#9ca3af]"
                       }`}
                     >
-                      {isGuided ? "✋ Guided only" : "\ud83d\udc4d Live detection"}
-                    </span>
-                    <span className="rounded-full bg-[#f5f5f5] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#b0b0b0]">
-                      {vadState}
-                    </span>
-                  </div>
-                </div>
-
-                <SignReference sign={target} isHighlighted={isCorrectFlash} caption={isGuided ? "Follow motion" : "Match this"} />
-              </div>
-
-              {/* Letter grid */}
-              <div className="mt-5 grid grid-cols-5 gap-1.5">
-                {ALL_REFERENCE_LETTERS.map((sign, index) => (
-                  <button
-                    key={sign}
-                    type="button"
-                    onClick={() => {
-                      setTargetIndex(index);
-                      setScores(INITIAL_SCORES);
-                      setLastDetection(null);
-                      detectionHistoryRef.current = [];
-                      setFeedback(`${sign} is loaded. Match the reference card.`);
-                    }}
-                    className={`h-10 rounded-xl border text-sm font-black transition-all duration-150 ${
-                      sign === target
-                        ? "border-[#1cb0f6] bg-[#e8f9ff] text-[#1cb0f6] shadow-[0_0_8px_rgba(28,176,246,0.2)]"
-                        : completedLetters.includes(sign)
-                          ? "border-[#58cc02]/40 bg-[#edffd6] text-[#45a301]"
-                          : "border-[#e5e5e5] bg-[#f5f5f5] text-[#777777] hover:border-[#cccccc] hover:bg-[#eeeeee]"
-                    }`}
-                  >
-                    {sign}
-                  </button>
-                ))}
-              </div>
-
-              {isGuided ? (
-                <button
-                  type="button"
-                  onClick={handleGuidedPractice}
-                  className="mt-4 inline-flex h-11 w-full items-center justify-center text-sm font-black uppercase tracking-[0.16em] text-white transition hover:opacity-90"
-                  style={{ background: "#ff9600", boxShadow: "0 4px 0 #cc7800", borderRadius: "9999px" }}
-                >
-                  &#x2705; Mark Guided Practice
-                </button>
-              ) : null}
-            </section>
-
-            {/* Feedback */}
-            <section className="rounded-3xl border border-[#e5e5e5] bg-white p-5 shadow-md">
-              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#b0b0b0]">Live feedback</p>
-              <p className="mt-3 min-h-12 text-sm leading-6 text-[#777777]">{feedback}</p>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <MiniStat label="Detected" value={lastDetection?.sign ?? "\u2013"} />
-                <MiniStat label="Confidence" value={lastDetection ? `${Math.round(lastDetection.confidence * 100)}%` : "\u2013"} />
-              </div>
-            </section>
-
-            <ScoreBars handshapeScore={scores.handshape} movementScore={scores.movement} orientationScore={scores.orientation} />
-
-            {/* Next lesson */}
-            <section className="rounded-3xl border border-[#e5e5e5] bg-white p-5 shadow-md">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#b0b0b0]">Next lesson</p>
-                  <h2 className="font-display mt-2 text-xl font-bold text-[#3c3c3c]">{nextLesson.title}</h2>
-                </div>
-                <Link
-                  href="/skill-tree"
-                  className="inline-flex h-10 shrink-0 items-center rounded-xl border border-[#e5e5e5] bg-[#f5f5f5] px-4 text-xs font-bold uppercase tracking-[0.14em] text-[#777777] transition hover:bg-[#eeeeee]"
-                >
-                  Open tree
-                </Link>
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {nextLesson.letters.map((letter) => (
-                  <div key={letter} className="rounded-2xl border border-[#e5e5e5] bg-[#f5f5f5] p-3">
-                    <SignReference sign={letter} caption={isGuidedOnlyLetter(letter) ? "Guided" : "Detectable"} />
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Performance */}
-            <section className="grid grid-cols-3 gap-2 rounded-3xl border border-[#e5e5e5] bg-white p-4 shadow-md">
-              <MiniStat label="FPS" value={metrics.fps || "\u2013"} muted={!metrics.fps} />
-              <MiniStat label="Latency" value={metrics.latencyMs ? `${metrics.latencyMs}ms` : "\u2013"} muted={!metrics.latencyMs} />
-              <MiniStat label="Dropped" value={metrics.droppedFrames} />
-            </section>
-
-            {/* Recent */}
-            <section className="rounded-3xl border border-[#e5e5e5] bg-white p-5 shadow-md">
-              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#b0b0b0]">Recent wins</p>
-              <div className="mt-3 space-y-1.5">
-                {recentSessionStats.slice(0, 4).map((entry) => (
-                  <div
-                    key={`${entry.completedAt}-${entry.letter}`}
-                    className="flex items-center justify-between rounded-xl border border-[#e5e5e5] bg-[#f5f5f5] px-3 py-2 text-sm"
-                  >
-                    <span className="font-black text-[#3c3c3c]">{entry.letter}</span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                        entry.accuracy >= 90
-                          ? "bg-[#edffd6] text-[#45a301]"
-                          : entry.accuracy >= 80
-                            ? "bg-[#fff9e0] text-[#ff9600]"
-                            : "text-[#b0b0b0]"
+                      Alphabet Grid
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setPracticeSubTab("words")}
+                      className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded transition-colors ${
+                        practiceSubTab === "words" ? "bg-[#4f8ef7]/15 text-[#4f8ef7]" : "text-[#6b7280] hover:text-[#9ca3af]"
                       }`}
                     >
-                      {entry.accuracy}%
-                    </span>
+                      Vocabulary flashcards
+                    </button>
                   </div>
-                ))}
-                {recentSessionStats.length === 0 ? (
-                  <p className="text-sm text-[#b0b0b0]">Your recent wins will show up here.</p>
-                ) : null}
+
+                  {/* Scrollable target lists */}
+                  <div className="flex-1 overflow-y-auto min-h-0 pr-2">
+                    {practiceSubTab === "letters" ? (
+                      <LetterDrill onPracticeLetter={handleLoadLetterToPractice} />
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-4">
+                        {MOCK_WORD_CARDS.map((word, idx) => (
+                          <WordLearningCard
+                            key={word.word}
+                            data={word}
+                            cardState={selectedWordIndex === idx ? "selected" : "idle"}
+                            onSelect={() => setSelectedWordIndex(idx)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
               </div>
-            </section>
-          </aside>
-        </div>
-      </section>
+            </motion.div>
+          )}
+
+        </AnimatePresence>
+      </main>
+
+      {/* ──────────────── ACTIVE LESSON MODAL OVERLAY ──────────────── */}
+      <AnimatePresence>
+        {activeLessonNode && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-[#0f1117]/95 flex items-center justify-center p-6"
+          >
+            <div className="max-w-4xl w-full h-[85vh] bg-[#1a1d27] border border-[#22263a] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative">
+              
+              {/* Close/Quit Lesson Button */}
+              <button
+                type="button"
+                onClick={() => setActiveLessonNode(null)}
+                className="absolute top-4 right-4 h-9 w-9 rounded-full bg-[#22263a] hover:bg-[#2b304c] text-[#9ca3af] flex items-center justify-center transition-colors z-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {/* Lesson header */}
+              <div className="px-6 py-4 border-b border-[#22263a] bg-[#1a1d27] shrink-0">
+                <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#4f8ef7]">
+                  Active Lesson Path Node
+                </span>
+                <h3 className="font-display text-lg font-bold text-[#f0f2f8] mt-0.5">
+                  {activeLessonNode.title}
+                </h3>
+              </div>
+
+              {/* Lesson core content zone */}
+              <div className="flex-1 min-h-0 overflow-y-auto p-6">
+                {activeLessonNode.type === "letters" ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-6 h-full items-start">
+                    
+                    {/* Left side: Mirrored aspect-video camera feed */}
+                    <div className="space-y-4">
+                      <div className="relative">
+                        <WebcamFeed
+                          disablePose
+                          overlayMessage={overlayMessage}
+                          overlayTone={overlayTone}
+                          onSignDetected={handleDetection}
+                          onSignSegment={() => setSegmentCount((count) => count + 1)}
+                        />
+                      </div>
+                      <ScoreBars
+                        handshapeScore={scores.handshape}
+                        movementScore={scores.movement}
+                        orientationScore={scores.orientation}
+                      />
+                    </div>
+
+                    {/* Right side: target card */}
+                    <div className="space-y-4">
+                      <div className="bg-[#0f1117] border border-[#22263a] rounded-xl p-5 flex items-center justify-between relative overflow-hidden">
+                        {xpBurst !== null && (
+                          <div className="absolute right-4 top-4 bg-[#3dd68c] text-[#0f1117] text-[10px] font-mono font-bold px-2 py-0.5 rounded-[6px]">
+                            +{xpBurst} XP
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-[#6b7280] tracking-widest block">Sign target</span>
+                          <h4 className="font-display text-5xl font-black text-[#f0f2f8] mt-1">
+                            {activeLessonNode.items[activeLessonIndex]}
+                          </h4>
+                          <span className="text-[9px] uppercase font-bold text-[#9ca3af] bg-[#22263a] px-2 py-0.5 rounded-full mt-2 inline-block">
+                            Progress: {activeLessonIndex + 1}/{activeLessonNode.items.length}
+                          </span>
+                        </div>
+
+                        <div className="shrink-0 w-24">
+                          <SignReference
+                            sign={activeLessonNode.items[activeLessonIndex]}
+                            isHighlighted={isCorrectFlash}
+                            caption="Match Poses"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Lesson specific guidance logs */}
+                      <div className="bg-[#0f1117]/50 border border-[#22263a] rounded-xl p-4 space-y-2">
+                        <span className="text-[9px] uppercase font-bold text-[#6b7280] tracking-widest block">Instructions</span>
+                        <p className="text-xs text-[#9ca3af] leading-relaxed">{lessonFeedback}</p>
+                        {isGuidedOnlyLetter(activeLessonNode.items[activeLessonIndex]) && (
+                          <button
+                            type="button"
+                            onClick={handleGuidedPractice}
+                            className="w-full h-10 mt-2 bg-[#f7a84f] text-[#0f1117] font-bold text-xs rounded-lg hover:bg-amber-400 active:bg-amber-600 transition-colors"
+                          >
+                            ✅ Mark Pose Complete (Guided reference)
+                          </button>
+                        )}
+                      </div>
+
+                    </div>
+
+                  </div>
+                ) : (
+                  // Sentence lesson node launches SentenceBuilder directly inside modal
+                  <div className="h-full pb-4">
+                    <SentenceBuilder />
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
-
-function HudStat({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: string;
-  label: string;
-  value: string | number;
-  color: "cyan" | "amber" | "emerald" | "violet";
-}) {
-  const colorMap = {
-    cyan:    "border-[#1cb0f6]/30 bg-[#e8f9ff] text-[#0a9de0]",
-    amber:   "border-[#ffc800]/30 bg-[#fff9e0] text-[#ff9600]",
-    emerald: "border-[#58cc02]/30 bg-[#edffd6] text-[#45a301]",
-    violet:  "border-[#ce82ff]/30 bg-[#f5e8ff] text-[#a855f7]",
-  };
-  return (
-    <div className={`min-w-[86px] rounded-2xl border bg-white px-3 py-2.5 shadow-sm ${colorMap[color]}`}>
-      <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-80">{icon} {label}</p>
-      <p className="font-display mt-1 text-xl font-black text-[#3c3c3c]">{value}</p>
-    </div>
-  );
-}
-
-function MiniStat({ label, value, muted }: { label: string; value: string | number; muted?: boolean }) {
-  return (
-    <div className="rounded-xl border border-[#e5e5e5] bg-[#f5f5f5] px-3 py-2">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-[#b0b0b0]">{label}</p>
-      <p className={`mt-0.5 text-base font-black ${muted ? "text-[#b0b0b0]" : "text-[#3c3c3c]"}`}>{value}</p>
-    </div>
-  );
-}
-

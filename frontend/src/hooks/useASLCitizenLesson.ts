@@ -193,7 +193,7 @@ export function useASLCitizenLesson({
           setFrameCount(idx + 1);
         }
       },
-      [sendWSFrame, landmarksRef, isHandsFree, phase, runRollingEvaluation, isStreaming],
+      [sendWSFrame, landmarksRef, isHandsFree, runRollingEvaluation],
     ),
   });
 

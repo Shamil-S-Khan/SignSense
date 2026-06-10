@@ -106,15 +106,15 @@ export function WebcamFeed({
   const statusLabel = workerError || cameraError || (!isReady ? "Loading MediaPipe" : isStreaming ? "Camera Live" : "Camera Ready");
 
   return (
-    <section className="relative h-full min-h-[420px] overflow-hidden rounded-[var(--radius-card)] border border-[#e5e5e5] bg-[#2a1040]">
+    <section className="relative w-full aspect-video overflow-hidden rounded-[var(--radius-card)] border border-[#22263a] bg-zinc-950 shadow-2xl">
       {/* Idle placeholder – shown when camera hasn't started */}
       {!isStreaming && !cameraStarted && (
-        <div className="absolute inset-0 z-5 flex flex-col items-center justify-center gap-4 bg-purple-950/70">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <div className="absolute inset-0 z-5 flex flex-col items-center justify-center gap-3 bg-zinc-950/90 backdrop-blur-sm">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M23 7L16 12l7 5V7z" />
             <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
           </svg>
-          <p className="text-sm font-semibold text-white/40">Start camera to begin</p>
+          <p className="text-xs font-semibold text-[#9ca3af]">Start camera to begin</p>
         </div>
       )}
       <video
@@ -130,28 +130,28 @@ export function WebcamFeed({
       {overlayMessage ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 px-6">
           <div
-            className={`rounded-2xl border px-6 py-4 text-center backdrop-blur ${
+            className={`rounded-xl border px-5 py-3.5 text-center backdrop-blur-md ${
               overlayTone === "success"
-                ? "border-emerald-300/70 bg-emerald-400/20 text-white"
+                ? "border-[#3dd68c]/70 bg-[#3dd68c]/20 text-[#f0f2f8]"
                 : overlayTone === "guided"
-                  ? "border-amber-300/70 bg-amber-400/20 text-white"
-                  : "border-white/20 bg-black/40 text-white"
+                  ? "border-[#f7a84f]/70 bg-[#f7a84f]/20 text-[#f0f2f8]"
+                  : "border-[#22263a] bg-[#1a1d27]/80 text-[#f0f2f8]"
             }`}
           >
-            <p className="text-3xl font-black uppercase tracking-[0.18em]">{overlayMessage}</p>
+            <p className="text-2xl font-black uppercase tracking-[0.18em]">{overlayMessage}</p>
           </div>
         </div>
       ) : null}
 
-      <div className="absolute left-4 top-4 z-20 flex flex-wrap gap-2">
+      <div className="absolute left-3 top-3 z-20 flex flex-wrap gap-1.5">
         <StatusPill tone={isStreaming ? "green" : workerError || cameraError ? "red" : "neutral"}>{statusLabel}</StatusPill>
         <StatusPill tone={vadState === "SIGNING" ? "green" : vadState === "COOLDOWN" ? "amber" : "neutral"}>
           {vadState}
         </StatusPill>
       </div>
 
-      <div className="absolute bottom-4 left-4 right-4 z-20 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div className="grid w-full grid-cols-3 gap-2 rounded-xl border border-white/15 bg-black/60 p-3 text-center backdrop-blur md:max-w-xs">
+      <div className="absolute bottom-3 left-3 right-3 z-20 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div className="grid w-full grid-cols-3 gap-1 rounded-xl border border-[#22263a] bg-[#1a1d27]/90 px-3 py-1.5 text-center backdrop-blur-sm md:max-w-[220px]">
           <Metric label="FPS" value={metrics.fps || "-"} />
           <Metric label="Latency" value={metrics.latencyMs ? `${metrics.latencyMs}ms` : "-"} />
           <Metric label="Dropped" value={metrics.droppedFrames} />
@@ -161,7 +161,7 @@ export function WebcamFeed({
           type="button"
           onClick={isStreaming ? stop : start}
           disabled={!isReady}
-          className="h-11 rounded-xl bg-white px-5 text-sm font-bold text-[#3c3c3c] transition hover:bg-[#e8f9ff] disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-9 rounded-lg bg-white px-4 text-xs font-bold text-[#0f1117] transition hover:bg-[#e8f9ff] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isStreaming ? "Stop Camera" : cameraStarted ? "Starting..." : cameraError ? "Retry Camera" : "Start Camera"}
         </button>
