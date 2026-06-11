@@ -15,11 +15,11 @@ describe("lesson-data", () => {
   });
 
   it("exposes lesson metadata with detection support", () => {
-    const lesson = getLessonById("jkl");
+    const lesson = getLessonById("u1-2"); // Alphabet F-J
     expect(lesson).toBeDefined();
     expect(lesson?.guidedOnly).toEqual(["J"]);
-    expect(lesson?.supportsDetection).toEqual(["K", "L"]);
-    expect(LESSONS).toHaveLength(9);
+    expect(lesson?.supportsDetection).toEqual(["F", "G", "H", "I"]);
+    expect(LESSONS).toHaveLength(29);
   });
 
   it("keeps Y detectable while Z remains guided", () => {

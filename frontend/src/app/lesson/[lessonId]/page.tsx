@@ -130,7 +130,7 @@ export default function LessonPage() {
             The requested lesson is not part of the active sign recognition curriculum.
           </p>
           <Link
-            href="/skill-tree"
+            href="/"
             className="mt-6 inline-flex h-11 items-center px-6 rounded-xl bg-[#00D4FF] hover:bg-[#00B4DF] text-[#080C14] font-display font-black text-xs uppercase tracking-wider transition-colors"
           >
             Return to tree
@@ -355,7 +355,7 @@ export default function LessonPage() {
     setStartWipe(true);
     setTimeout(() => {
       audioManager.fadeBgmIn(0.5);
-      router.push("/skill-tree");
+      router.push("/");
     }, 600);
   };
 
@@ -378,7 +378,7 @@ export default function LessonPage() {
         {/* Left Side: Back / Unit */}
         <div className="flex items-center gap-3">
           <Link
-            href="/skill-tree"
+            href="/"
             onClick={() => audioManager.fadeBgmIn(0.5)}
             className="h-9 w-9 rounded-lg bg-[#080C14] hover:bg-[#141E2E] flex items-center justify-center border border-[#141E2E] text-[#64748B] hover:text-[#00D4FF] transition-colors"
           >
@@ -690,7 +690,7 @@ export default function LessonPage() {
               {/* Glowing star SVGs in center */}
               <motion.div
                 initial={{ scale: 0 }}
-                animate={{ scale: [0, 1.1, 1] }}
+                animate={{ scale: 1 }}
                 transition={{ type: "spring", stiffness: 400, damping: 18, delay: 0.25 }}
                 className="my-6 flex justify-center filter drop-shadow-[0_0_20px_rgba(245,158,11,0.4)]"
               >
