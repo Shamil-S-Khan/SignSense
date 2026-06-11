@@ -106,7 +106,7 @@ export function WebcamFeed({
   const statusLabel = workerError || cameraError || (!isReady ? "Loading MediaPipe" : isStreaming ? "Camera Live" : "Camera Ready");
 
   return (
-    <section className="relative w-full aspect-video overflow-hidden rounded-[var(--radius-card)] border border-[#22263a] bg-zinc-950 shadow-2xl">
+    <section className="relative w-full aspect-video overflow-hidden rounded-[var(--radius-card)] border-2 border-[#22263a] bg-zinc-950 shadow-2xl">
       {/* Idle placeholder – shown when camera hasn't started */}
       {!isStreaming && !cameraStarted && (
         <div className="absolute inset-0 z-5 flex flex-col items-center justify-center gap-3 bg-zinc-950/90 backdrop-blur-sm">
@@ -130,7 +130,7 @@ export function WebcamFeed({
       {overlayMessage ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 px-6">
           <div
-            className={`rounded-xl border px-5 py-3.5 text-center backdrop-blur-md ${
+            className={`rounded-2xl border-2 px-5 py-3.5 text-center backdrop-blur-md ${
               overlayTone === "success"
                 ? "border-[#3dd68c]/70 bg-[#3dd68c]/20 text-[#f0f2f8]"
                 : overlayTone === "guided"
@@ -151,7 +151,7 @@ export function WebcamFeed({
       </div>
 
       <div className="absolute bottom-3 left-3 right-3 z-20 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div className="grid w-full grid-cols-3 gap-1 rounded-xl border border-[#22263a] bg-[#1a1d27]/90 px-3 py-1.5 text-center backdrop-blur-sm md:max-w-[220px]">
+        <div className="grid w-full grid-cols-3 gap-1 rounded-2xl border-2 border-[#22263a] bg-[#1a1d27]/90 px-4 py-2 text-center backdrop-blur-sm md:max-w-[220px]">
           <Metric label="FPS" value={metrics.fps || "-"} />
           <Metric label="Latency" value={metrics.latencyMs ? `${metrics.latencyMs}ms` : "-"} />
           <Metric label="Dropped" value={metrics.droppedFrames} />
@@ -161,7 +161,7 @@ export function WebcamFeed({
           type="button"
           onClick={isStreaming ? stop : start}
           disabled={!isReady}
-          className="h-9 rounded-lg bg-white px-4 text-xs font-bold text-[#0f1117] transition hover:bg-[#e8f9ff] disabled:cursor-not-allowed disabled:opacity-50"
+          className={`${isStreaming ? "btn-pink" : cameraError ? "btn-amber" : "btn-blue"} h-10 px-5 text-xs disabled:cursor-not-allowed disabled:opacity-50`}
         >
           {isStreaming ? "Stop Camera" : cameraStarted ? "Starting..." : cameraError ? "Retry Camera" : "Start Camera"}
         </button>
@@ -173,14 +173,14 @@ export function WebcamFeed({
 function StatusPill({ children, tone }: { children: ReactNode; tone: "green" | "amber" | "red" | "neutral" }) {
   const className =
     tone === "green"
-      ? "border-emerald-400/40 bg-emerald-500/20 text-emerald-100"
+      ? "border-[#3dd68c] bg-[#3dd68c]/15 text-[#3dd68c]"
       : tone === "amber"
-        ? "border-amber-400/40 bg-amber-500/20 text-amber-100"
+        ? "border-[#f7a84f] bg-[#f7a84f]/15 text-[#f7a84f]"
         : tone === "red"
-          ? "border-red-400/40 bg-red-500/20 text-red-100"
-          : "border-white/10 bg-zinc-900/80 text-zinc-200";
+          ? "border-[#f75f5f] bg-[#f75f5f]/15 text-[#f75f5f]"
+          : "border-[#22263a] bg-[#1a1d27]/90 text-zinc-200";
 
-  return <span className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${className}`}>{children}</span>;
+  return <span className={`rounded-full border-2 px-4 py-1 text-[10px] font-extrabold uppercase tracking-wider ${className}`}>{children}</span>;
 }
 
 function Metric({ label, value }: { label: string; value: string | number }) {

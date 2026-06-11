@@ -30,13 +30,13 @@ export function SignReference({ sign, isHighlighted = false, caption = "Ref Guid
         className={`absolute inset-0 rounded-full blur-xl transition-opacity ${
           isHighlighted ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         }`}
-        style={{ background: isHighlighted ? "rgba(88,204,2,0.2)" : "rgba(28,176,246,0.15)" }}
+        style={{ background: isHighlighted ? "rgba(61,214,140,0.2)" : "rgba(79,142,247,0.15)" }}
       />
       <div
-        className={`relative w-24 h-24 overflow-hidden rounded-2xl border p-2 lg:h-32 lg:w-32 ${
+        className={`relative w-24 h-24 overflow-hidden rounded-2xl border-2 p-2 lg:h-32 lg:w-32 ${
           isHighlighted
-            ? "border-[#58cc02] bg-[#edffd6]"
-            : "border-[#e5e5e5] bg-[#f5f5f5]"
+            ? "border-[#3dd68c] bg-[#3dd68c]/15"
+            : "border-[#22263a] bg-[#0f1117]"
         }`}
       >
         <Image
@@ -48,7 +48,7 @@ export function SignReference({ sign, isHighlighted = false, caption = "Ref Guid
         />
       </div>
       <div className="mt-2 text-center">
-        <span className={`text-[10px] font-bold uppercase tracking-widest ${isHighlighted ? "text-[#45a301]" : "text-[#b0b0b0]"}`}>
+        <span className={`text-[10px] font-bold uppercase tracking-widest ${isHighlighted ? "text-[#3dd68c]" : "text-[#9ca3af]"}`}>
           {caption}
         </span>
       </div>

@@ -118,10 +118,10 @@ export function ProgressHeader() {
             <button
               type="button"
               onClick={() => setIsLeftHanded(!isLeftHanded)}
-              className={`flex h-9 items-center gap-1.5 rounded-full border px-3 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+              className={`flex h-9 items-center gap-1.5 rounded-full border-2 px-4 text-[10px] font-bold uppercase tracking-wider transition-all duration-100 ${
                 isLeftHanded
-                  ? "border-[#f7a84f]/40 bg-[#f7a84f]/10 text-[#f7a84f]"
-                  : "border-[#22263a] bg-[#1a1d27] text-[#9ca3af]"
+                  ? "border-[#f7a84f] bg-[#f7a84f]/10 text-[#f7a84f] hover:bg-[#f7a84f]/20 shadow-[0_2px_0_rgba(247,168,79,0.3)] active:translate-y-[2px] active:shadow-none"
+                  : "border-[#22263a] bg-[#1a1d27] text-[#9ca3af] hover:bg-[#22263a]/50 shadow-[0_2px_0_rgba(34,38,58,0.4)] active:translate-y-[2px] active:shadow-none"
               }`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-current" />
@@ -129,7 +129,7 @@ export function ProgressHeader() {
             </button>
             
             {/* XP Counter with floating increments */}
-            <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1a1d27] border border-[#22263a]">
+            <div className="relative flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#1a1d27] border-2 border-[#22263a] hover:bg-[#22263a]/40 transition-colors">
               <Zap className="h-4.5 w-4.5 text-[#4f8ef7] fill-[#4f8ef7]/20" />
               <div className="flex flex-col">
                 <span className="text-[10px] uppercase font-semibold text-[#6b7280]">XP Total</span>
@@ -156,7 +156,7 @@ export function ProgressHeader() {
             </div>
 
             {/* Streak Counter */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1a1d27] border border-[#22263a]">
+            <div className="flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#1a1d27] border-2 border-[#22263a] hover:bg-[#22263a]/40 transition-colors">
               <Flame className="h-4.5 w-4.5 text-[#f7a84f] fill-[#f7a84f]/20 animate-pulse" />
               <div className="flex flex-col">
                 <span className="text-[10px] uppercase font-semibold text-[#6b7280]">Streak</span>
@@ -219,13 +219,13 @@ export function ProgressHeader() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.7, y: 50 }}
               transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
-              className="max-w-md text-center p-8 rounded-2xl bg-[#1a1d27] border border-[#22263a] shadow-2xl relative overflow-hidden"
+              className="max-w-md w-full text-center p-8 rounded-3xl bg-[#0f1623] border-2 border-[#22263a] shadow-[0_16px_48px_rgba(0,0,0,0.6)] relative overflow-hidden"
             >
               {/* Radial gradient backing */}
               <div className="absolute -inset-10 bg-gradient-to-b from-[#4f8ef7]/10 to-transparent pointer-events-none rounded-full blur-3xl" />
 
               <div className="flex justify-center mb-4">
-                <div className="h-16 w-16 flex items-center justify-center rounded-2xl bg-[#4f8ef7]/10 border border-[#4f8ef7]/20">
+                <div className="h-16 w-16 flex items-center justify-center rounded-2xl bg-[#4f8ef7]/10 border-2 border-[#4f8ef7]/20">
                   <Award className="h-10 w-10 text-[#f7a84f] fill-[#f7a84f]/10" />
                 </div>
               </div>
@@ -249,7 +249,7 @@ export function ProgressHeader() {
               <button
                 type="button"
                 onClick={() => setShowLevelUp(false)}
-                className="mt-8 h-11 w-full bg-[#4f8ef7] text-[#f0f2f8] font-bold rounded-lg hover:bg-[#5fa0ff] active:bg-[#2b61b3] shadow-md transition-colors"
+                className="mt-8 h-12 w-full btn-blue"
               >
                 Continue Learning
               </button>

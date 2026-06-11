@@ -64,22 +64,24 @@ export function LetterDrill({ onPracticeLetter }: LetterDrillProps) {
   };
 
   // Get color fill intensity based on mastery
+  // Get color fill intensity based on mastery
   const getMasteryColor = (letter: string) => {
     const { count, avgAccuracy } = getLetterStats(letter);
+    const base = "border-2 transition-all active:translate-y-[2px] duration-100";
     if (count === 0) {
-      return "bg-[#22263a]/40 border-zinc-800 text-[#9ca3af] hover:bg-[#2b304c]";
+      return `${base} bg-[#1a1d27] border-[#22263a] border-b-4 text-[#9ca3af] hover:bg-[#22263a] active:border-b-2`;
     }
     if (avgAccuracy < 70) {
-      return "bg-[#4f8ef7]/15 border-[#4f8ef7]/35 text-[#4f8ef7] hover:bg-[#4f8ef7]/25";
+      return `${base} bg-[#4f8ef7]/10 border-[#4f8ef7]/30 border-b-4 text-[#4f8ef7] hover:bg-[#4f8ef7]/20 active:border-b-2`;
     }
     if (avgAccuracy >= 70 && avgAccuracy < 85) {
-      return "bg-[#4f8ef7]/30 border-[#4f8ef7]/50 text-[#f0f2f8] hover:bg-[#4f8ef7]/40";
+      return `${base} bg-[#4f8ef7]/20 border-[#4f8ef7]/50 border-b-4 text-[#f0f2f8] hover:bg-[#4f8ef7]/35 active:border-b-2`;
     }
     if (avgAccuracy >= 85 && avgAccuracy < 95) {
-      return "bg-[#4f8ef7]/60 border-[#4f8ef7] text-[#f0f2f8] hover:bg-[#4f8ef7]/75";
+      return `${base} bg-[#4f8ef7]/40 border-[#4f8ef7]/75 border-b-4 text-[#f0f2f8] hover:bg-[#4f8ef7]/55 active:border-b-2`;
     }
     // Mastered (Green)
-    return "bg-[#3dd68c]/75 border-[#3dd68c] text-[#0f1117] hover:bg-[#3dd68c]";
+    return `${base} bg-[#3dd68c]/15 border-[#3dd68c]/60 border-b-4 text-[#3dd68c] hover:bg-[#3dd68c]/30 active:border-b-2`;
   };
 
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
@@ -112,7 +114,7 @@ export function LetterDrill({ onPracticeLetter }: LetterDrillProps) {
               key={letter}
               whileHover={{ scale: 1.02 }}
               onClick={() => setSelectedLetter(letter)}
-              className={`h-24 rounded-xl flex flex-col items-center justify-between p-3 border transition-all relative overflow-hidden ${getMasteryColor(
+              className={`h-24 rounded-2xl flex flex-col items-center justify-between p-3 relative overflow-hidden ${getMasteryColor(
                 letter
               )}`}
             >
@@ -144,23 +146,23 @@ export function LetterDrill({ onPracticeLetter }: LetterDrillProps) {
       <div className="flex items-center justify-end gap-3 text-[10px] text-[#6b7280]">
         <span>Mastery Level:</span>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-[#22263a]/40 border border-zinc-800" />
+          <span className="h-3 w-3 rounded bg-[#1a1d27] border-2 border-[#22263a]" />
           <span>0%</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-[#4f8ef7]/15 border border-[#4f8ef7]/35" />
+          <span className="h-3 w-3 rounded bg-[#4f8ef7]/15 border-2 border-[#4f8ef7]/35" />
           <span>&lt;70%</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-[#4f8ef7]/40 border border-[#4f8ef7]/50" />
+          <span className="h-3 w-3 rounded bg-[#4f8ef7]/40 border-2 border-[#4f8ef7]/50" />
           <span>70-85%</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-[#4f8ef7]/70 border border-[#4f8ef7]" />
+          <span className="h-3 w-3 rounded bg-[#4f8ef7]/70 border-2 border-[#4f8ef7]" />
           <span>85-95%</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded bg-[#3dd68c]/75 border border-[#3dd68c]" />
+          <span className="h-3 w-3 rounded bg-[#3dd68c]/75 border-2 border-[#3dd68c]" />
           <span>95%+</span>
         </div>
       </div>
@@ -179,7 +181,7 @@ export function LetterDrill({ onPracticeLetter }: LetterDrillProps) {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 30 }}
               transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="max-w-xl w-full bg-[#1a1d27] border border-[#22263a] rounded-2xl shadow-2xl overflow-hidden relative"
+              className="max-w-xl w-full bg-[#0f1623] border-2 border-[#22263a] rounded-3xl shadow-[0_16px_48px_rgba(0,0,0,0.6)] overflow-hidden relative"
             >
               {/* Close Button */}
               <button
@@ -241,7 +243,7 @@ export function LetterDrill({ onPracticeLetter }: LetterDrillProps) {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b7280]">Critical Landmarks</span>
                   <div className="space-y-1.5">
                     {pedagogy.callouts.map((callout, idx) => (
-                      <div key={idx} className="flex items-start gap-2 text-xs text-[#f0f2f8] bg-[#22263a]/40 p-2 rounded-lg border border-[#22263a]/50">
+                      <div key={idx} className="flex items-start gap-2 text-xs text-[#f0f2f8] bg-[#22263a]/40 p-2 rounded-xl border border-[#22263a]/50">
                         <Sparkles className="h-3.5 w-3.5 text-[#f7a84f] shrink-0 mt-0.5" />
                         <span>{callout}</span>
                       </div>
@@ -256,7 +258,7 @@ export function LetterDrill({ onPracticeLetter }: LetterDrillProps) {
                     onPracticeLetter(selectedLetter);
                     setSelectedLetter(null);
                   }}
-                  className="mt-6 h-11 w-full bg-[#4f8ef7] text-[#f0f2f8] font-bold rounded-lg hover:bg-[#5fa0ff] active:bg-[#2b61b3] shadow-md transition-colors flex items-center justify-center gap-2"
+                  className="mt-6 h-12 w-full btn-blue flex items-center justify-center gap-2"
                 >
                   <Play className="h-4 w-4 fill-current" />
                   Load into Practice Zone

@@ -539,18 +539,18 @@ export function SkillTree() {
                         className="mb-3 w-full"
                       >
                         <div
-                          className="rounded-2xl px-5 py-3 border flex items-center gap-4"
+                          className="rounded-3xl px-5 py-4 border-2 flex items-center gap-4"
                           style={{
-                            background: `linear-gradient(135deg, ${chapterInfo.color}20 0%, #070B1500 100%)`,
-                            borderColor: `${chapterInfo.color}45`,
-                            boxShadow: `0 0 30px ${chapterInfo.color}10`,
+                            background: `linear-gradient(135deg, ${chapterInfo.color}15 0%, #070B1500 100%)`,
+                            borderColor: `${chapterInfo.color}35`,
+                            boxShadow: `0 8px 32px rgba(0, 0, 0, 0.4)`,
                           }}
                         >
                           <div
-                            className="w-10 h-10 rounded-xl flex items-center justify-center text-2xl shrink-0 border"
+                            className="w-10 h-10 rounded-2xl flex items-center justify-center text-2xl shrink-0 border-2"
                             style={{
                               backgroundColor: `${chapterInfo.color}15`,
-                              borderColor: `${chapterInfo.color}40`,
+                              borderColor: `${chapterInfo.color}35`,
                             }}
                           >
                             {chapterInfo.num === 1 ? "🔤" : chapterInfo.num === 2 ? "🤝" : "💬"}
@@ -577,10 +577,11 @@ export function SkillTree() {
                       viewport={{ once: false, margin: "-30px" }}
                     >
                       <div
-                        className="rounded-xl px-4 py-3 border flex items-center justify-between"
+                        className="rounded-2xl px-5 py-3.5 border-2 flex items-center justify-between"
                         style={{
                           background: `linear-gradient(135deg, ${unit.color}14 0%, #0F162395 100%)`,
                           borderColor: `${unit.color}35`,
+                          boxShadow: `0 8px 32px rgba(0, 0, 0, 0.4)`,
                         }}
                       >
                         <div className="flex items-center gap-3">
@@ -761,7 +762,7 @@ export function SkillTree() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", stiffness: 230, damping: 26 }}
-              className="absolute bottom-0 inset-x-0 z-50 rounded-t-3xl border-t border-[#141E2E] bg-[#0D1520] shadow-[0_-12px_48px_rgba(0,0,0,0.55)] p-6"
+              className="absolute bottom-0 inset-x-0 z-50 rounded-t-[32px] border-t-2 border-[#141E2E] bg-[#0f1623] shadow-[0_-16px_48px_rgba(0,0,0,0.6)] p-6"
             >
               <div className="max-w-lg mx-auto flex flex-col gap-5 relative">
                 {/* Close */}
@@ -797,24 +798,24 @@ export function SkillTree() {
 
                 {/* XP + Difficulty */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-[#080C14] border border-[#141E2E] rounded-xl p-3 flex flex-col gap-1.5">
+                  <div className="bg-[#080C14] border-2 border-[#141E2E] rounded-2xl p-3.5 flex flex-col gap-1.5 shadow-inner">
                     <span className="text-[8px] font-display font-black uppercase tracking-wider text-[#64748B]">XP Reward</span>
                     <div className="flex items-center gap-1.5">
-                      <Sparkles className="h-4 w-4 text-[#00D4FF]" />
+                      <Sparkles className="h-4 w-4 text-[#4f8ef7]" />
                       <span className="font-mono text-sm font-bold text-[#FFD700]">+{selectedLesson.xp} XP</span>
                     </div>
                   </div>
-                  <div className="bg-[#080C14] border border-[#141E2E] rounded-xl p-3 flex flex-col gap-1.5">
+                  <div className="bg-[#080C14] border-2 border-[#141E2E] rounded-2xl p-3.5 flex flex-col gap-1.5 shadow-inner">
                     <span className="text-[8px] font-display font-black uppercase tracking-wider text-[#64748B]">Difficulty</span>
                     <div className="flex items-center gap-0.5">
                       {Array.from({ length: 3 }).map((_, i) => (
                         <Star
-                          key={i}
-                          className="h-4 w-4"
-                          style={{
-                            color: i < selectedLesson.difficulty ? "#FFD700" : "#141E2E",
-                            fill: i < selectedLesson.difficulty ? "#FFD700" : "#141E2E",
-                          }}
+                           key={i}
+                           className="h-4 w-4"
+                           style={{
+                             color: i < selectedLesson.difficulty ? "#FFD700" : "#141E2E",
+                             fill: i < selectedLesson.difficulty ? "#FFD700" : "#141E2E",
+                           }}
                         />
                       ))}
                     </div>
@@ -822,25 +823,30 @@ export function SkillTree() {
                 </div>
 
                 {/* Start button */}
-                <div className="relative pt-1.5">
-                  <div
-                    className="absolute inset-x-0 bottom-0 top-1.5 rounded-xl z-0"
-                    style={{ backgroundColor: "#B45309" }}
-                  />
-                  <motion.button
-                    type="button"
-                    whileTap={{ y: 4 }}
-                    onClick={() => { handleStartLesson(selectedLesson.id); setSelectedLesson(null); }}
-                    className="w-full h-12 relative z-10 rounded-xl font-display font-black text-sm uppercase tracking-widest flex items-center justify-center"
-                    style={{
-                      background: "linear-gradient(90deg, #F59E0B, #D97706)",
-                      color: "#060A12",
-                      boxShadow: "0 4px 0 #92400E",
-                    }}
-                  >
-                    Start Lesson →
-                  </motion.button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => { handleStartLesson(selectedLesson.id); setSelectedLesson(null); }}
+                  className="w-full h-12 rounded-2xl font-display font-extrabold text-sm uppercase tracking-widest flex items-center justify-center transition-all duration-100"
+                  style={{
+                    backgroundColor: selectedColor,
+                    color: "#080c14",
+                    boxShadow: `0 4px 0 ${selectedColor}bb`,
+                  }}
+                  onMouseDown={(e) => {
+                    e.currentTarget.style.transform = "translateY(4px)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                  onMouseUp={(e) => {
+                    e.currentTarget.style.transform = "none";
+                    e.currentTarget.style.boxShadow = `0 4px 0 ${selectedColor}bb`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "none";
+                    e.currentTarget.style.boxShadow = `0 4px 0 ${selectedColor}bb`;
+                  }}
+                >
+                  Start Lesson →
+                </button>
               </div>
             </motion.div>
           </>

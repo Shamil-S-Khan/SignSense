@@ -34,6 +34,12 @@ export function useWebcam(): UseWebcamReturn {
       onFrameRef.current = onFrame;
       if (streamRef.current) return;
 
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setError("Camera access is not supported. Ensure you are using HTTPS or localhost.");
+        setIsStreaming(false);
+        return;
+      }
+
       navigator.mediaDevices
         .getUserMedia({
           video: {

@@ -41,7 +41,7 @@ export const MascotCharacter = forwardRef<MascotHandle>((_, ref) => {
         aria-label="ASL hand mascot"
       >
         {/* Glow halo */}
-        <ellipse cx="22" cy="48" rx="14" ry="3" fill="#00D4FF" opacity="0.18" />
+        <ellipse cx="22" cy="48" rx="14" ry="3" fill="var(--accent)" opacity="0.18" />
 
         {/* Palm */}
         <path
@@ -53,7 +53,7 @@ export const MascotCharacter = forwardRef<MascotHandle>((_, ref) => {
         <path
           d="M17 22 L16 8 Q16.5 4 18.5 4 Q20.5 4 21 8 L21 22"
           fill="url(#finger-grad)"
-          stroke="#00D4FF"
+          stroke="var(--accent)"
           strokeWidth="0.5"
           strokeOpacity="0.4"
         />
@@ -74,7 +74,7 @@ export const MascotCharacter = forwardRef<MascotHandle>((_, ref) => {
         <path
           d="M28.5 22 L30 10 Q30.5 6 32.5 6.5 Q34 7 33.5 11 L32 22"
           fill="url(#finger-grad)"
-          stroke="#00D4FF"
+          stroke="var(--accent)"
           strokeWidth="0.5"
           strokeOpacity="0.4"
         />
@@ -83,7 +83,7 @@ export const MascotCharacter = forwardRef<MascotHandle>((_, ref) => {
         <path
           d="M10 26 L4 20 Q2 17 3.5 15 Q5 13 7.5 15.5 L11 22"
           fill="url(#finger-grad)"
-          stroke="#00D4FF"
+          stroke="var(--accent)"
           strokeWidth="0.5"
           strokeOpacity="0.4"
         />
@@ -92,8 +92,8 @@ export const MascotCharacter = forwardRef<MascotHandle>((_, ref) => {
         <line x1="14" y1="26" x2="32" y2="26" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
 
         {/* Fingernails accent dots */}
-        <circle cx="18.5" cy="5.5" r="1.2" fill="#00D4FF" opacity="0.5" />
-        <circle cx="31" cy="8" r="1.2" fill="#00D4FF" opacity="0.5" />
+        <circle cx="18.5" cy="5.5" r="1.2" fill="var(--accent)" opacity="0.5" />
+        <circle cx="31" cy="8" r="1.2" fill="var(--accent)" opacity="0.5" />
 
         <defs>
           <linearGradient id="palm-grad" x1="22" y1="20" x2="22" y2="52" gradientUnits="userSpaceOnUse">
@@ -111,7 +111,7 @@ export const MascotCharacter = forwardRef<MascotHandle>((_, ref) => {
       <motion.div
         className="absolute inset-0 rounded-full pointer-events-none"
         style={{
-          background: "radial-gradient(ellipse, #00D4FF18 0%, transparent 70%)",
+          background: "radial-gradient(ellipse, rgba(79, 142, 247, 0.18) 0%, transparent 70%)",
           top: -8,
           left: -8,
           right: -8,

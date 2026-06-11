@@ -284,13 +284,15 @@ export default function Home() {
       <ProgressHeader />
 
       {/* Tabs Menu Bar */}
-      <section className="bg-[#1a1d27]/40 border-b border-[#22263a] px-6 py-2 flex items-center justify-between shrink-0">
-        <div className="flex gap-4">
+      <section className="bg-[#0f1623]/80 border-b-2 border-[#141e2e] px-6 py-3.5 flex items-center justify-between shrink-0 z-20">
+        <div className="flex bg-[#080c14] p-1 rounded-full border-2 border-[#141e2e] gap-1 shadow-inner">
           <button
             type="button"
             onClick={() => setActiveTab("tree")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors relative rounded-md ${
-              activeTab === "tree" ? "text-[#4f8ef7] bg-[#4f8ef7]/5" : "text-[#6b7280] hover:text-[#9ca3af]"
+            className={`flex items-center gap-2 px-5 py-2 text-xs font-extrabold uppercase tracking-wider transition-all rounded-full ${
+              activeTab === "tree" 
+                ? "text-[#ffffff] bg-[#4f8ef7] shadow-[0_2px_0_#2860c2]" 
+                : "text-[#6b7280] hover:text-[#9ca3af]"
             }`}
           >
             <Layers className="h-4 w-4" />
@@ -300,8 +302,10 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setActiveTab("practice")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors relative rounded-md ${
-              activeTab === "practice" ? "text-[#4f8ef7] bg-[#4f8ef7]/5" : "text-[#6b7280] hover:text-[#9ca3af]"
+            className={`flex items-center gap-2 px-5 py-2 text-xs font-extrabold uppercase tracking-wider transition-all rounded-full ${
+              activeTab === "practice" 
+                ? "text-[#ffffff] bg-[#4f8ef7] shadow-[0_2px_0_#2860c2]" 
+                : "text-[#6b7280] hover:text-[#9ca3af]"
             }`}
           >
             <BookOpen className="h-4 w-4" />

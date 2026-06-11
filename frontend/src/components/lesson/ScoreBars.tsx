@@ -47,7 +47,7 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
         </span>
         <span
           className={`text-xs font-mono font-bold ${
-            pct === 0 ? "text-[#64748B]" : pct >= 95 ? "text-[#22C55E]" : pct >= 70 ? "text-[#F59E0B]" : "text-[#EF4444]"
+            pct === 0 ? "text-[#64748B]" : pct >= 95 ? "text-[#3dd68c]" : pct >= 70 ? "text-[#f7a84f]" : "text-[#f75f5f]"
           }`}
         >
           {pct === 0 ? "—" : `${Math.round(pct)}%`}
@@ -55,14 +55,14 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
       </div>
 
       {/* Bar rail */}
-      <div className="relative h-4 w-full overflow-hidden rounded-full bg-[#080C14] border border-[#141E2E] p-0.5 shadow-inner">
+      <div className="relative h-6 w-full overflow-hidden rounded-full bg-[#080C14] border-2 border-[#141E2E] p-0.5 shadow-inner">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ type: "spring", stiffness: 100, damping: 20 }}
-          className="h-full rounded-full bg-gradient-to-r from-[#EF4444] via-[#F59E0B] to-[#22C55E]"
+          className="h-full rounded-full bg-gradient-to-r from-[#f75f5f] via-[#f7a84f] to-[#3dd68c]"
           style={{
-            boxShadow: pct > 0 ? "0 0 10px rgba(34, 197, 94, 0.2)" : "none",
+            boxShadow: pct > 0 ? "0 0 10px rgba(61, 214, 140, 0.2)" : "none",
           }}
         />
       </div>
@@ -72,7 +72,7 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
 
 export function ScoreBars({ handshapeScore, movementScore, orientationScore }: Props) {
   return (
-    <section className="rounded-2xl border border-[#141E2E] bg-[#0F1623] p-4 shadow-xl">
+    <section className="rounded-2xl border-2 border-[#141E2E] bg-[#0F1623] p-4 shadow-xl">
       <p className="mb-3 text-[9px] font-display font-black uppercase tracking-widest text-[#64748B]">
         Execution Analysis
       </p>

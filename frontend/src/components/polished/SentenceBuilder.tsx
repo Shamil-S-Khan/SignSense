@@ -101,6 +101,9 @@ export function SentenceBuilder() {
   const startCamera = async () => {
     try {
       setCameraError(false);
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Camera API is not supported. Ensure you are using HTTPS or localhost.");
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 360, facingMode: "user" }
       });
@@ -223,10 +226,10 @@ export function SentenceBuilder() {
   const showConfidence = predictionConfidence >= 0.60;
 
   return (
-    <div className="card w-full flex flex-col overflow-hidden bg-[#1a1d27] border border-[#22263a] rounded-xl font-body">
+    <div className="card w-full flex flex-col overflow-hidden bg-[#1a1d27] border-2 border-[#22263a] rounded-2xl font-body">
       
       {/* ──────────────── TOP ZONE (60% Height) ──────────────── */}
-      <div className="p-6 border-b border-[#22263a] bg-[#1a1d27] flex flex-col justify-between min-h-[260px]">
+      <div className="p-6 border-b-2 border-[#22263a] bg-[#1a1d27] flex flex-col justify-between min-h-[260px]">
         
         {/* Sentence Selection */}
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -239,7 +242,7 @@ export function SentenceBuilder() {
             <select
               value={selectedSentenceIndex}
               onChange={(e) => setSelectedSentenceIndex(Number(e.target.value))}
-              className="bg-[#0f1117] border border-[#22263a] text-xs rounded-md text-[#f0f2f8] px-3 py-1.5 focus:outline-none focus:border-[#4f8ef7]"
+              className="bg-[#0f1117] border-2 border-[#22263a] text-xs rounded-xl text-[#f0f2f8] px-3 py-1.5 focus:outline-none focus:border-[#4f8ef7]"
             >
               {CURATED_SENTENCES.map((s, idx) => (
                 <option key={idx} value={idx}>
@@ -289,12 +292,12 @@ export function SentenceBuilder() {
                   {/* Slot chip with shared layoutId */}
                   <motion.div
                     layoutId={`word-slot-${word}`}
-                    className={`h-14 w-full px-4 rounded-xl flex items-center justify-center gap-2 border transition-all duration-300 relative ${
+                    className={`h-14 w-full px-4 rounded-2xl flex items-center justify-center gap-2 border-2 transition-all duration-300 relative ${
                       isCompleted
-                        ? "bg-[#3dd68c] border-[#3dd68c] text-[#0f1117] font-semibold"
+                        ? "bg-[#3dd68c] border-[#3dd68c] text-[#0f1117] font-bold shadow-[0_3px_0_#28a364]"
                         : isActive
-                          ? "border-[#4f8ef7] bg-[#1a2035] text-[#f0f2f8] ring-2 ring-[#4f8ef7]/40 ring-offset-2 ring-offset-[#0f1117] shadow-[0_0_12px_rgba(79,142,247,0.2)]"
-                          : "border-[#6b7280]/20 bg-[#0f1117]/50 text-[#6b7280]"
+                          ? "border-[#4f8ef7] bg-[#1a2035] text-[#f0f2f8] shadow-[0_3px_0_rgba(79,142,247,0.35)]"
+                          : "border-[#22263a] bg-[#0f1117]/50 text-[#6b7280]"
                     }`}
                   >
                     {isCompleted ? (
@@ -376,16 +379,16 @@ export function SentenceBuilder() {
       <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr] h-[260px] bg-[#0f1117] relative">
         
         {/* Left Side: Live Feed Container */}
-        <div className="relative h-full flex items-center justify-center p-3 border-r border-[#22263a]/40">
+        <div className="relative h-full flex items-center justify-center p-3 border-r-2 border-[#22263a]/40">
           
           {/* 16:9 Camera Feed Wrapper (rounded-12/rounded-xl) */}
           <div
-            className={`w-full max-w-[320px] aspect-video rounded-xl overflow-hidden bg-[#1a1d27] relative transition-all duration-300 ${
+            className={`w-full max-w-[320px] aspect-video rounded-2xl overflow-hidden bg-[#1a1d27] relative transition-all duration-300 ${
               detectionState === "CONFIRMED"
                 ? "border-4 border-[#3dd68c] shadow-[0_0_15px_rgba(61,214,140,0.2)]"
                 : handsDetected
                   ? "border-2 border-[#4f8ef7]"
-                  : "border border-[#22263a]"
+                  : "border-2 border-[#22263a]"
             }`}
           >
             {/* Real Camera Stream */}
@@ -413,7 +416,7 @@ export function SentenceBuilder() {
               {/* Hand Detection Overlay prompt */}
               {!handsDetected && cameraActive && (
                 <div className="absolute inset-x-0 bottom-4 text-center z-10">
-                  <span className="bg-[#1a1d27]/90 text-[10px] px-2.5 py-1 rounded-md border border-[#22263a] text-[#9ca3af] uppercase tracking-wider font-mono">
+                  <span className="bg-[#1a1d27]/90 text-[10px] px-2.5 py-1 rounded-md border-2 border-[#22263a] text-[#9ca3af] uppercase tracking-wider font-mono">
                     Show your hands in frame
                   </span>
                 </div>
@@ -433,7 +436,7 @@ export function SentenceBuilder() {
               {showHint && (
                 <div className="absolute inset-0 z-20 bg-black/95 flex flex-col items-center justify-center p-2 pointer-events-auto">
                   <span className="text-[10px] uppercase font-bold text-[#f7a84f] mb-1 font-mono">3s Demonstration</span>
-                  <div className="w-full aspect-video bg-[#22263a] rounded border border-[#22263a] relative overflow-hidden flex items-center justify-center">
+                  <div className="w-full aspect-video bg-[#22263a] rounded-xl border-2 border-[#22263a] relative overflow-hidden flex items-center justify-center">
                     <video
                       src={SIGN_VIDEOS[activeWord] || SIGN_VIDEOS.BOOK}
                       autoPlay
@@ -465,7 +468,7 @@ export function SentenceBuilder() {
                 >
                   <motion.div
                     animate={detectionState === "REJECTED" ? controls : {}}
-                    className={`px-3 py-1.5 rounded-full border shadow-lg flex items-center gap-2 pointer-events-auto ${
+                    className={`px-3 py-1.5 rounded-full border-2 shadow-lg flex items-center gap-2 pointer-events-auto ${
                       detectionState === "CONFIRMED"
                         ? "bg-[#132a22] border-[#3dd68c] text-[#3dd68c]"
                         : detectionState === "REJECTED"
@@ -536,7 +539,7 @@ export function SentenceBuilder() {
                 type="button"
                 disabled={detectionState !== "IDLE" || completedSlots[activeSlotIndex]}
                 onClick={() => simulateSignDetection(true)}
-                className="h-10 text-xs font-bold rounded-lg border border-[#4f8ef7]/30 bg-[#4f8ef7]/10 hover:bg-[#4f8ef7]/20 text-[#4f8ef7] flex items-center justify-center gap-1.5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="h-10 text-xs font-extrabold uppercase tracking-wider rounded-xl border-b-4 border-[#2860c2] bg-[#4f8ef7] text-white hover:bg-[#5f9cf8] active:translate-y-[2px] active:border-b-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
               >
                 <Check className="h-3.5 w-3.5" />
                 Sign Match
@@ -546,7 +549,7 @@ export function SentenceBuilder() {
                 type="button"
                 disabled={detectionState !== "IDLE" || completedSlots[activeSlotIndex]}
                 onClick={() => simulateSignDetection(false)}
-                className="h-10 text-xs font-bold rounded-lg border border-[#f75f5f]/30 bg-[#f75f5f]/10 hover:bg-[#f75f5f]/20 text-[#f75f5f] flex items-center justify-center gap-1.5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="h-10 text-xs font-extrabold uppercase tracking-wider rounded-xl border-b-4 border-[#c74343] bg-[#f75f5f] text-white hover:bg-[#fa7373] active:translate-y-[2px] active:border-b-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
               >
                 <AlertCircle className="h-3.5 w-3.5" />
                 Sign Deviant
@@ -558,10 +561,10 @@ export function SentenceBuilder() {
               <button
                 type="button"
                 onClick={() => setHandsDetected(!handsDetected)}
-                className={`h-9 rounded-md border text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${
+                className={`h-9 rounded-xl border-2 border-b-4 text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:translate-y-[2px] active:border-b-2 ${
                   handsDetected
-                    ? "bg-[#3dd68c]/10 border-[#3dd68c]/30 text-[#3dd68c]"
-                    : "bg-[#22263a] border-zinc-800 text-[#9ca3af]"
+                    ? "bg-[#3dd68c]/20 border-[#3dd68c] text-[#3dd68c]"
+                    : "bg-[#1a1d27] border-[#22263a] text-[#9ca3af]"
                 }`}
               >
                 <Camera className="h-3.5 w-3.5" />
@@ -572,10 +575,10 @@ export function SentenceBuilder() {
               <button
                 type="button"
                 onClick={cameraActive ? stopCamera : startCamera}
-                className={`h-9 rounded-md border text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${
+                className={`h-9 rounded-xl border-2 border-b-4 text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:translate-y-[2px] active:border-b-2 ${
                   cameraActive
-                    ? "bg-[#4f8ef7]/10 border-[#4f8ef7]/30 text-[#4f8ef7]"
-                    : "bg-[#22263a] border-zinc-800 text-[#9ca3af]"
+                    ? "bg-[#4f8ef7]/20 border-[#4f8ef7] text-[#4f8ef7]"
+                    : "bg-[#1a1d27] border-[#22263a] text-[#9ca3af]"
                 }`}
               >
                 {cameraActive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -588,7 +591,7 @@ export function SentenceBuilder() {
               <button
                 type="button"
                 onClick={() => setShowHint(true)}
-                className="h-9 w-full bg-[#f7a84f] text-[#0f1117] font-bold text-xs rounded-md hover:bg-amber-400 transition-colors flex items-center justify-center gap-1.5 uppercase tracking-wider font-mono shadow-md shadow-[#f7a84f]/15"
+                className="h-10 w-full btn-amber flex items-center justify-center gap-1.5 text-xs font-extrabold"
               >
                 <HelpCircle className="h-3.5 w-3.5" />
                 Need a hint?

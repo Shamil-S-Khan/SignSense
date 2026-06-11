@@ -39,13 +39,13 @@ export function WordLearningCard({
     mastered: "mastered",
   };
 
-  // State colors - each visually distinct
+  // State colors - each visually distinct with Duolingo-style bottom shadow
   const stateStyles = {
-    idle: "border border-[#22263a] bg-[#1a1d27] hover:bg-[#22263a] hover:border-[#4f8ef7]/40 transition-all duration-200",
-    hovered: "border border-[#4f8ef7]/60 bg-[#22263a] shadow-[0_0_12px_rgba(79,142,247,0.1)] transition-all duration-200",
-    selected: "border-2 border-[#4f8ef7] bg-[#1a2035] shadow-[0_0_15px_rgba(79,142,247,0.15)]",
-    correct: "border-2 border-[#3dd68c] bg-[#132a22] shadow-[0_0_15px_rgba(61,214,140,0.15)]",
-    incorrect: "border-2 border-[#f75f5f] bg-[#2d1b20] shadow-[0_0_15px_rgba(247,95,95,0.15)]",
+    idle: "border-2 border-[#22263a] bg-[#1a1d27] hover:bg-[#22263a] hover:border-[#4f8ef7]/40 shadow-[0_4px_0_#141724] transition-all duration-200",
+    hovered: "border-2 border-[#4f8ef7]/60 bg-[#22263a] shadow-[0_4px_0_rgba(79,142,247,0.2)] transition-all duration-200",
+    selected: "border-2 border-[#4f8ef7] bg-[#1a2035] shadow-[0_4px_0_rgba(79,142,247,0.4)]",
+    correct: "border-2 border-[#3dd68c] bg-[#132a22] shadow-[0_4px_0_rgba(61,214,140,0.4)]",
+    incorrect: "border-2 border-[#f75f5f] bg-[#2d1b20] shadow-[0_4px_0_rgba(247,95,95,0.4)]",
   };
 
   const flipCard = (e: React.MouseEvent) => {
@@ -64,7 +64,7 @@ export function WordLearningCard({
         
         {/* ──────── FRONT OF CARD ──────── */}
         <div
-          className={`absolute inset-0 w-full h-full rounded-xl p-4 flex flex-col justify-between [backface-visibility:hidden] transition-colors duration-200 ${stateStyles[cardState]}`}
+          className={`absolute inset-0 w-full h-full rounded-2xl p-4 flex flex-col justify-between [backface-visibility:hidden] transition-colors duration-200 ${stateStyles[cardState]}`}
         >
           {/* Status Indicator & Utility buttons */}
           <div className="flex items-center justify-between">
@@ -75,7 +75,7 @@ export function WordLearningCard({
               <button
                 type="button"
                 onClick={flipCard}
-                className="h-7 w-7 rounded-md bg-[#22263a] hover:bg-[#2b304c] flex items-center justify-center text-[#9ca3af] transition-colors"
+                className="h-7 w-7 rounded-xl bg-[#22263a] hover:bg-[#2b304c] border border-[#2b304c] flex items-center justify-center text-[#9ca3af] transition-all hover:scale-105"
                 title="View description & tips"
               >
                 <HelpCircle className="h-4 w-4" />
@@ -117,7 +117,7 @@ export function WordLearningCard({
 
         {/* ──────── BACK OF CARD (Flipped) ──────── */}
         <div
-          className={`absolute inset-0 w-full h-full rounded-xl p-4 flex flex-col justify-between [backface-visibility:hidden] [transform:rotateY(180deg)] border border-[#22263a] bg-[#22263a]/90 backdrop-blur-sm`}
+          className={`absolute inset-0 w-full h-full rounded-2xl p-4 flex flex-col justify-between [backface-visibility:hidden] [transform:rotateY(180deg)] border-2 border-[#22263a] bg-[#22263a]/90 backdrop-blur-sm shadow-[0_4px_0_#141724]`}
           onClick={(e) => e.stopPropagation()} // Stop selection toggle when interacting with back
         >
           {/* Card Back Header */}

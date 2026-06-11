@@ -284,12 +284,10 @@ export function SkillNode({ id, title, description, state, icon, xp, color, onCl
             </div>
             {/* Arrow tip */}
             <div
-              className="w-3 h-3 mx-auto -mt-1.5 rotate-45"
+              className="w-3 h-3 mx-auto -mt-1.5 rotate-45 border-r border-b"
               style={{
-                background: `linear-gradient(135deg, ${color}1A, #0F1623)`,
-                border: `1px solid ${color}50`,
-                borderTop: "none",
-                borderLeft: "none",
+                background: "#0F1623",
+                borderColor: `${color}50`,
               }}
             />
           </motion.div>
